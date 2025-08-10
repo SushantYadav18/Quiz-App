@@ -13,4 +13,17 @@
     <color name="gray_light">#F5F5F5</color>
     <color name="error">#FF3B30</color>
     <color name="success">#34C759</color>
+    
+    <!-- Additional colors for enhanced design -->
+    <color name="accent_orange">#FF6B35</color>
+    <color name="accent_purple">#8B5CF6</color>
+    <color name="accent_green">#10B981</color>
+    <color name="accent_blue">#3B82F6</color>
+    <color name="accent_pink">#EC4899</color>
+    <color name="accent_yellow">#F59E0B</color>
+    <color name="background_light">#F8FAFC</color>
+    <color name="surface_white">#FFFFFF</color>
+    <color name="text_primary">#1F2937</color>
+    <color name="text_secondary">#6B7280</color>
+    <color name="border_light">#E5E7EB</color>
 </resources>

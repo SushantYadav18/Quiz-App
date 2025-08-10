@@ -7,11 +7,14 @@ public class TestModel {
 
     public TestModel() {
         // Required empty constructor for Firebase
+        this.id = "";
+        this.topScore = "0";
+        this.time = 0;
     }
 
-    public TestModel(String id, String topScore, int time) {
+    public TestModel(String id, int topScore, int time) {
         this.id = id;
-        this.topScore = topScore;
+        this.topScore = String.valueOf(topScore);
         this.time = time;
     }
 
@@ -24,7 +27,7 @@ public class TestModel {
     }
 
     public String getTopScore() {
-        return topScore;
+        return topScore != null ? topScore : "0";
     }
 
     public void setTopScore(String topScore) {

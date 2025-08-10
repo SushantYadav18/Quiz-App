@@ -1,9 +1,11 @@
 package com.example.quizpractice;
 
+import android.app.Dialog;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.MenuItem;
 import android.view.View;
+import android.widget.ProgressBar;
 import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
@@ -13,15 +15,12 @@ import androidx.appcompat.widget.Toolbar;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
-import java.util.ArrayList;
-import java.util.List;
-
 public class TestActivity extends AppCompatActivity {
     private static final String TAG = "TestActivity";
     private RecyclerView testRecycler;
     private Toolbar toolbar;
-    private List<TestModel> testList;
     private TestAdapter adapter;
+    private Dialog loadingDialog;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -30,16 +29,26 @@ public class TestActivity extends AppCompatActivity {
         setContentView(R.layout.activity_test);
 
         try {
+            Log.d(TAG, "TestActivity onCreate started");
+            
+            // Initialize loading dialog
+            loadingDialog = new Dialog(this);
+            loadingDialog.setContentView(R.layout.loading_progressbar);
+            loadingDialog.setCancelable(false);
+            loadingDialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+
             // Initialize views
             toolbar = findViewById(R.id.toolbar);
             testRecycler = findViewById(R.id.testRecycle);
-            testList = new ArrayList<>();
 
             if (testRecycler == null) {
                 Log.e(TAG, "RecyclerView is null!");
                 Toast.makeText(this, "Error: RecyclerView not found", Toast.LENGTH_LONG).show();
+                finish();
                 return;
             }
+
+            Log.d(TAG, "Views initialized successfully");
 
             // Setup toolbar
             setSupportActionBar(toolbar);
@@ -48,10 +57,21 @@ public class TestActivity extends AppCompatActivity {
                 getSupportActionBar().setDisplayShowHomeEnabled(true);
                 
                 // Get category position and set title
-                int position = getIntent().getIntExtra("CAT_INDEX", 0);
-                String categoryName = getIntent().getStringExtra("CAT_NAME");
-                if (categoryName != null) {
+                int catIndex = getIntent().getIntExtra("CAT_INDEX", 0);
+                DbQuery.g_selected_cat_index = catIndex;
+                
+                Log.d(TAG, "Category index received: " + catIndex);
+                Log.d(TAG, "Total categories available: " + DbQuery.g_catList.size());
+                
+                if (catIndex >= 0 && catIndex < DbQuery.g_catList.size()) {
+                    String categoryName = DbQuery.g_catList.get(catIndex).getName();
                     getSupportActionBar().setTitle(categoryName);
+                    Log.d(TAG, "Loading tests for category: " + categoryName + " (index: " + catIndex + ")");
+                } else {
+                    Log.e(TAG, "Invalid category index: " + catIndex);
+                    Toast.makeText(this, "Error: Invalid category", Toast.LENGTH_SHORT).show();
+                    finish();
+                    return;
                 }
             }
 
@@ -62,53 +82,64 @@ public class TestActivity extends AppCompatActivity {
             testRecycler.setHasFixedSize(true);
             testRecycler.setVisibility(View.VISIBLE);
 
-            // Load and display test data
-            loadTestData();
-            
-            // Create and set adapter
-            adapter = new TestAdapter(testList, this);
-            testRecycler.setAdapter(adapter);
-            
-            // Force layout update
-            testRecycler.requestLayout();
-            
-            // Log for debugging
-            Log.d(TAG, "Number of test items: " + testList.size());
-            Log.d(TAG, "RecyclerView visibility: " + testRecycler.getVisibility());
-            Log.d(TAG, "RecyclerView height: " + testRecycler.getHeight());
-            Log.d(TAG, "RecyclerView width: " + testRecycler.getWidth());
-            Log.d(TAG, "Adapter item count: " + adapter.getItemCount());
-            
-            // Verify data
-            for (int i = 0; i < testList.size(); i++) {
-                TestModel model = testList.get(i);
-                Log.d(TAG, String.format("Test %d: ID=%s, Score=%s", i, model.getId(), model.getTopScore()));
-            }
+            Log.d(TAG, "RecyclerView setup completed");
+
+            // Show loading dialog
+            loadingDialog.show();
+
+            // Load test data from database
+            Log.d(TAG, "Starting to load tests...");
+            DbQuery.loadTests(new MyCompleteListener() {
+                @Override
+                public void onSuccess() {
+                    Log.d(TAG, "Tests loaded successfully. Count: " + DbQuery.g_testList.size());
+                    
+                    runOnUiThread(() -> {
+                        try {
+                            // Initialize adapter with loaded data
+                            adapter = new TestAdapter(DbQuery.g_testList, TestActivity.this);
+                            testRecycler.setAdapter(adapter);
+                            
+                            // Log test details for debugging
+                            for (int i = 0; i < DbQuery.g_testList.size(); i++) {
+                                TestModel test = DbQuery.g_testList.get(i);
+                                Log.d(TAG, String.format("Test %d: ID=%s, Time=%d", 
+                                    i + 1, test.getId(), test.getTime()));
+                            }
+                            
+                            // Dismiss loading dialog
+                            loadingDialog.dismiss();
+                            
+                            Log.d(TAG, "TestActivity setup completed successfully");
+                        } catch (Exception e) {
+                            Log.e(TAG, "Error setting up adapter: " + e.getMessage());
+                            e.printStackTrace();
+                            loadingDialog.dismiss();
+                            Toast.makeText(TestActivity.this, 
+                                "Error setting up tests: " + e.getMessage(), 
+                                Toast.LENGTH_SHORT).show();
+                        }
+                    });
+                }
+
+                @Override
+                public void onFailure() {
+                    Log.e(TAG, "Failed to load tests");
+                    runOnUiThread(() -> {
+                        loadingDialog.dismiss();
+                        Toast.makeText(TestActivity.this, 
+                            "Failed to load tests. Please try again later.", 
+                            Toast.LENGTH_SHORT).show();
+                        finish();
+                    });
+                }
+            });
+
         } catch (Exception e) {
             Log.e(TAG, "Error in onCreate: " + e.getMessage());
             e.printStackTrace();
             Toast.makeText(this, "Error initializing: " + e.getMessage(), Toast.LENGTH_LONG).show();
-        }
-    }
-
-    private void loadTestData() {
-        try {
-            testList.clear();
-            // Add same test data for all categories with valid scores
-            testList.add(new TestModel("1", "80", 10));
-            testList.add(new TestModel("2", "65", 15));
-            testList.add(new TestModel("3", "90", 20));
-            testList.add(new TestModel("4", "45", 25));
-            testList.add(new TestModel("5", "75", 30));
-            
-            // Log for debugging
-            Log.d(TAG, "Test data loaded. Size: " + testList.size());
-            for (TestModel model : testList) {
-                Log.d(TAG, "Test item: " + model.getId() + ", Score: " + model.getTopScore());
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Error loading test data: " + e.getMessage());
-            e.printStackTrace();
+            finish();
         }
     }
 

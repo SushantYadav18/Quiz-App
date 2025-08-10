@@ -8,6 +8,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -87,21 +88,59 @@ public class CategoryFragment extends Fragment {
         adapter = new CategoryAdapter(g_catList, requireContext());
         catRecycler.setAdapter(adapter);
 
-        // Now load categories
-        DbQuery.loadCategories(new MyCompleteListener() {
-            @Override
-            public void onSuccess() {
-                adapter.notifyDataSetChanged();
-            }
-
-            @Override
-            public void onFailure() {
-                // Optionally show an error message
-            }
-        });
+        // Now load categories from database
+        loadCategoriesFromDatabase();
 
         return view;
     }
 
+    private void loadCategoriesFromDatabase() {
+        Log.d(TAG, "Loading categories from database...");
+        
+        DbQuery.loadCategories(new MyCompleteListener() {
+            @Override
+            public void onSuccess() {
+                Log.d(TAG, "Categories loaded successfully. Count: " + g_catList.size());
+                adapter.notifyDataSetChanged();
+                updateStatsCards();
+                
+                if (g_catList.isEmpty()) {
+                    // Show a message if no categories found
+                    if (getContext() != null) {
+                        Toast.makeText(getContext(), "No categories found in database", Toast.LENGTH_SHORT).show();
+                    }
+                } else {
+                    // Show success message
+                    if (getContext() != null) {
+                        Toast.makeText(getContext(), g_catList.size() + " categories loaded", Toast.LENGTH_SHORT).show();
+                    }
+                }
+            }
 
+            @Override
+            public void onFailure() {
+                Log.e(TAG, "Failed to load categories from database");
+                if (getContext() != null) {
+                    Toast.makeText(getContext(), "Failed to load categories", Toast.LENGTH_SHORT).show();
+                }
+            }
+        });
+    }
+
+    private void updateStatsCards() {
+        // Update the stats cards in the layout
+        View view = getView();
+        if (view != null) {
+            TextView categoriesCount = view.findViewById(R.id.categoriesCount);
+            TextView completedCount = view.findViewById(R.id.completedCount);
+            
+            if (categoriesCount != null) {
+                categoriesCount.setText(String.valueOf(g_catList.size()));
+            }
+            
+            if (completedCount != null) {
+                completedCount.setText("0"); // You can update this with actual completed count
+            }
+        }
+    }
 }

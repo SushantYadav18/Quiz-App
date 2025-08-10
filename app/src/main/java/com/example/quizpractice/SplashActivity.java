@@ -6,6 +6,7 @@ import android.os.Handler;
 import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
@@ -43,9 +44,27 @@ public class SplashActivity extends AppCompatActivity {
         DbQuery.g_firestore = FirebaseFirestore.getInstance();
         
         if (mAuth.getCurrentUser() != null) {
-            startActivity(new Intent(SplashActivity.this, MainActivity.class));
+
+            DbQuery.loadData(new MyCompleteListener() {
+                @Override
+                public void onSuccess() {
+                    // Update the drawer header with the loaded user data
+                    MainActivity.updateDrawerHeader(SplashActivity.this);
+                    startActivity(new Intent(SplashActivity.this, MainActivity.class));
+                    finish();
+                }
+
+                @Override
+                public void onFailure() {
+                      Toast.makeText(SplashActivity.this, "Failed to load categories", Toast.LENGTH_SHORT).show();
+                }
+            });
+
+        }
+        else {
+            Intent intent = new Intent(SplashActivity.this, LoginActivity.class);
+            startActivity(intent);
             finish();
-            return;
         }
         
 

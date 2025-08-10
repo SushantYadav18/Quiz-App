@@ -141,7 +141,7 @@ public class SignUpActivity extends AppCompatActivity {
 
                             @Override
                             public void onSuccess() {
-                                DbQuery.loadCategories(new MyCompleteListener() {
+                                DbQuery.loadData(new MyCompleteListener() {
                                     @Override
                                     public void onSuccess() {
                                         startActivity(new Intent(SignUpActivity.this, MainActivity.class));

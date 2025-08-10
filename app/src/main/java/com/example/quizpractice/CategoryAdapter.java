@@ -34,19 +34,18 @@ public class CategoryAdapter extends RecyclerView.Adapter<CategoryAdapter.ViewHo
     }
 
     @Override
-    public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
+    public void onBindViewHolder(@NonNull ViewHolder holder, int i) {
         try {
-            if (catList != null && position < catList.size()) {
-                CategoryModel model = catList.get(position);
-                Log.d(TAG, "Binding category at position " + position + ": " + model.getName());
+            if (catList != null && i < catList.size()) {
+                CategoryModel model = catList.get(i);
+                Log.d(TAG, "Binding category at position " + i + ": " + model.getName());
                 
                 holder.catName.setText(model.getName());
                 holder.noOfTests.setText(model.getNoOfTests() + " Tests");
 
                 holder.startButton.setOnClickListener(v -> {
                     Intent intent = new Intent(context, TestActivity.class);
-                    intent.putExtra("CAT_INDEX", position);
-                    intent.putExtra("CAT_NAME", model.getName());
+                    intent.putExtra("CAT_INDEX", i);
                     context.startActivity(intent);
                 });
 
@@ -66,7 +65,7 @@ public class CategoryAdapter extends RecyclerView.Adapter<CategoryAdapter.ViewHo
                         .start();
                 });
             } else {
-                Log.e(TAG, "Invalid position or null list: position=" + position + ", list size=" + (catList != null ? catList.size() : 0));
+                Log.e(TAG, "Invalid position or null list: position=" + i + ", list size=" + (catList != null ? catList.size() : 0));
             }
         } catch (Exception e) {
             Log.e(TAG, "Error binding view holder: " + e.getMessage());

@@ -40,21 +40,48 @@ public class TestAdapter extends RecyclerView.Adapter<TestAdapter.ViewHolder> {
                 TestModel model = testList.get(position);
                 Log.d(TAG, "Binding item at position " + position + ": " + model.getId());
                 
-                holder.testNo.setText("Test No. " + model.getId());
-                holder.topScore.setText(model.getTopScore() + "%");
+                // Set test number
+                holder.testNo.setText("Test " + model.getId());
+                
+                // Set score with proper formatting
+                String score = model.getTopScore();
+                int scoreValue = 0;
+                try {
+                    scoreValue = Integer.parseInt(score);
+                } catch (NumberFormatException e) {
+                    Log.e(TAG, "Invalid score format: " + score);
+                }
+                holder.topScore.setText(scoreValue + "%");
+                
+                // Set progress bar
                 holder.progressBar.setMax(100);
-                holder.progressBar.setProgress(Integer.parseInt(model.getTopScore()));
+                holder.progressBar.setProgress(scoreValue);
 
+                // Set time
+                holder.timeText.setText(model.getTime() + " min");
+
+                // Make all views visible
                 holder.testNo.setVisibility(View.VISIBLE);
                 holder.topScore.setVisibility(View.VISIBLE);
                 holder.progressBar.setVisibility(View.VISIBLE);
+                holder.timeText.setVisibility(View.VISIBLE);
                 holder.itemView.setVisibility(View.VISIBLE);
 
-                Log.d(TAG, String.format("Item %d dimensions - Width: %d, Height: %d", 
-                    position, holder.itemView.getWidth(), holder.itemView.getHeight()));
-
+                // Add click animation and listener
                 holder.itemView.setOnClickListener(v -> {
-                    Toast.makeText(context, "Test " + model.getId() + " selected", Toast.LENGTH_SHORT).show();
+                    v.animate()
+                        .scaleX(0.95f)
+                        .scaleY(0.95f)
+                        .setDuration(100)
+                        .withEndAction(() -> {
+                            v.animate()
+                                .scaleX(1f)
+                                .scaleY(1f)
+                                .setDuration(100)
+                                .start();
+                            Toast.makeText(context, "Test " + model.getId() + " selected", Toast.LENGTH_SHORT).show();
+                        })
+                        .start();
                 });
             } else {
                 Log.e(TAG, "Invalid position or null list: position=" + position + ", list size=" + (testList != null ? testList.size() : 0));
@@ -75,16 +102,19 @@ public class TestAdapter extends RecyclerView.Adapter<TestAdapter.ViewHolder> {
     public static class ViewHolder extends RecyclerView.ViewHolder {
         TextView testNo;
         TextView topScore;
+        TextView timeText;
         ProgressBar progressBar;
 
         public ViewHolder(@NonNull View itemView) {
             super(itemView);
             testNo = itemView.findViewById(R.id.testNum);
             topScore = itemView.findViewById(R.id.Scoretext);
+            timeText = itemView.findViewById(R.id.timeText);
             progressBar = itemView.findViewById(R.id.testprogressBar);
 
             if (testNo == null) Log.e("ViewHolder", "testNo TextView not found");
             if (topScore == null) Log.e("ViewHolder", "topScore TextView not found");
+            if (timeText == null) Log.e("ViewHolder", "timeText TextView not found");
             if (progressBar == null) Log.e("ViewHolder", "progressBar not found");
         }
     }
