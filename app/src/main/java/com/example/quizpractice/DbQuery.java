@@ -30,8 +30,8 @@ public class DbQuery {
     public static int g_selected_cat_index = 0;
 
     public static ProfileModel myProfile = new ProfileModel("NA" ,"null");
-
-
+    public static int g_selected_test_index = 0;
+  public static  List<QuestionModel> g_questionList = new ArrayList<>();
 
     public static void createUserData( String name, String email, MyCompleteListener completeListener) {
 
@@ -91,7 +91,7 @@ public class DbQuery {
     public static void loadCategories(final MyCompleteListener completeListener) {
         g_catList.clear();
         Log.d("DbQuery", "Starting to load categories from database...");
-        
+
         g_firestore.collection("QUIZ").get()
                 .addOnSuccessListener(new OnSuccessListener<QuerySnapshot>() {
                     @Override
@@ -157,6 +157,39 @@ public class DbQuery {
                     }
                 });
     }
+
+    public static void loadquestions(final MyCompleteListener completeListener) {
+        g_questionList.clear(); // Clear previous questions if any
+
+        g_firestore.collection("Question")
+                .whereEqualTo("CATEGORY", g_catList.get(g_selected_cat_index).getDocID())
+                .whereEqualTo("TEST", g_testList.get(g_selected_test_index).getId())
+                .get()
+                .addOnSuccessListener(new OnSuccessListener<QuerySnapshot>() {
+                    @Override
+                    public void onSuccess(QuerySnapshot queryDocumentSnapshots) {
+                        for (DocumentSnapshot doc : queryDocumentSnapshots) {
+
+                            g_questionList.add(new QuestionModel(
+                                    doc.getString("QUESTION"),
+                                    doc.getString("OPTION_A"),
+                                    doc.getString("OPTION_B"),
+                                    doc.getString("OPTION_C"),
+                                    doc.getString("OPTION_D"),
+                                    doc.getLong("ANSWER").intValue()
+                            ));
+                        }
+                        completeListener.onSuccess();
+                    }
+                })
+                .addOnFailureListener(new OnFailureListener() {
+                    @Override
+                    public void onFailure(@NonNull Exception e) {
+                        completeListener.onFailure();
+                    }
+                });
+    }
+
 
     public static void loadTests(final MyCompleteListener completeListener) {
         g_testList.clear();
@@ -248,7 +281,7 @@ public class DbQuery {
 
     public  static void  loadData(final MyCompleteListener completeListener){
 
-        loadCategories(new MyCompleteListener() {
+        DbQuery.loadCategories(new MyCompleteListener() {
             @Override
             public void onSuccess() {
                 getUserData(completeListener);

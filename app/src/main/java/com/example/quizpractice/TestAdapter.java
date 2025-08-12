@@ -1,6 +1,7 @@
 package com.example.quizpractice;
 
 import android.content.Context;
+import android.content.Intent;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -79,7 +80,10 @@ public class TestAdapter extends RecyclerView.Adapter<TestAdapter.ViewHolder> {
                                 .scaleY(1f)
                                 .setDuration(100)
                                 .start();
-                            Toast.makeText(context, "Test " + model.getId() + " selected", Toast.LENGTH_SHORT).show();
+                            // Navigate to Start Test page, then Questions
+                            DbQuery.g_selected_test_index = position;
+                            Intent intent = new Intent(context, test_startActivity.class);
+                            context.startActivity(intent);
                         })
                         .start();
                 });
@@ -112,10 +116,24 @@ public class TestAdapter extends RecyclerView.Adapter<TestAdapter.ViewHolder> {
             timeText = itemView.findViewById(R.id.timeText);
             progressBar = itemView.findViewById(R.id.testprogressBar);
 
+
             if (testNo == null) Log.e("ViewHolder", "testNo TextView not found");
             if (topScore == null) Log.e("ViewHolder", "topScore TextView not found");
             if (timeText == null) Log.e("ViewHolder", "timeText TextView not found");
             if (progressBar == null) Log.e("ViewHolder", "progressBar not found");
+        }
+
+        public void setData(int pos, int progress) {
+            testNo.setText("Test No" + String.valueOf(pos + 1));
+            topScore.setText(String.valueOf(progress) + "%");
+
+            progressBar.setProgress(progress);
+
+            itemView.setOnClickListener((view) -> {
+                DbQuery.g_selected_test_index =pos;
+                        Intent intent = new Intent(itemView.getContext(), test_startActivity.class);
+                itemView.getContext().startActivity(intent);
+            });
         }
     }
 }
