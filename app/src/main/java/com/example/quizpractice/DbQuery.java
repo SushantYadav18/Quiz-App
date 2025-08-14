@@ -159,25 +159,191 @@ public class DbQuery {
     }
 
     public static void loadquestions(final MyCompleteListener completeListener) {
-        g_questionList.clear(); // Clear previous questions if any
+        g_questionList.clear();
+        Log.d("DbQuery", "Starting loadquestions method");
 
-        g_firestore.collection("Question")
-                .whereEqualTo("CATEGORY", g_catList.get(g_selected_cat_index).getDocID())
-                .whereEqualTo("TEST", g_testList.get(g_selected_test_index).getId())
+        if (g_catList.isEmpty() || g_selected_cat_index >= g_catList.size() ||
+            g_testList.isEmpty() || g_selected_test_index >= g_testList.size()) {
+            Log.e("DbQuery", "Cannot load questions: invalid selected indices. catIndex=" + g_selected_cat_index +
+                    ", testIndex=" + g_selected_test_index + ", cats=" + g_catList.size() + ", tests=" + g_testList.size());
+            completeListener.onFailure();
+            return;
+        }
+
+        final String expectedCategoryId = g_catList.get(g_selected_cat_index).getDocID();
+        final String expectedTestId = g_testList.get(g_selected_test_index).getId();
+
+        Log.d("DbQuery", "Attempting to load questions for categoryId=" + expectedCategoryId + ", testId=" + expectedTestId);
+        Log.d("DbQuery", "Category name: " + g_catList.get(g_selected_cat_index).getName());
+        Log.d("DbQuery", "Test ID: " + expectedTestId);
+        Log.d("DbQuery", "Category list size: " + g_catList.size());
+        Log.d("DbQuery", "Test list size: " + g_testList.size());
+
+                 // Try multiple database structures - start with your actual collection name
+         attemptLoadQuestions("Questions", "CATEGORY", "TEST", expectedCategoryId, expectedTestId, new MyCompleteListener() {
+            @Override
+            public void onSuccess() {
+                if (g_questionList.isEmpty()) {
+                    Log.w("DbQuery", "Primary query returned 0 questions. Trying alternative structures...");
+                    
+                    // Try different collection names
+                    attemptLoadQuestions("QUESTIONS", "CATEGORY", "TEST", expectedCategoryId, expectedTestId, new MyCompleteListener() {
+                        @Override
+                        public void onSuccess() {
+                            if (g_questionList.isEmpty()) {
+                                // Try different field names
+                                attemptLoadQuestions("Question", "CAT_ID", "TEST_ID", expectedCategoryId, expectedTestId, new MyCompleteListener() {
+                                    @Override
+                                    public void onSuccess() {
+                                        if (g_questionList.isEmpty()) {
+                                            // Try with lowercase field names
+                                            attemptLoadQuestions("Question", "category", "test", expectedCategoryId, expectedTestId, new MyCompleteListener() {
+                                                @Override
+                                                public void onSuccess() {
+                                                    if (g_questionList.isEmpty()) {
+                                                        // Try with different collection structure
+                                                        attemptLoadQuestions("questions", "category_id", "test_id", expectedCategoryId, expectedTestId, new MyCompleteListener() {
+                                                            @Override
+                                                            public void onSuccess() {
+                                                                if (g_questionList.isEmpty()) {
+                                                                    Log.e("DbQuery", "No questions found after all attempts. Database structure may be different.");
+                                                                    Log.e("DbQuery", "Please check your Firestore database for the correct collection and field names.");
+                                                                    completeListener.onSuccess(); // Succeed with empty list
+                                                                } else {
+                                                                    Log.d("DbQuery", "Found " + g_questionList.size() + " questions using lowercase structure");
+                                                                    completeListener.onSuccess();
+                                                                }
+                                                            }
+
+                                                            @Override
+                                                            public void onFailure() {
+                                                                Log.e("DbQuery", "All query attempts failed. Please verify database structure.");
+                                                                completeListener.onFailure();
+                                                            }
+                                                        });
+                                                    } else {
+                                                        Log.d("DbQuery", "Found " + g_questionList.size() + " questions using lowercase fields");
+                                                        completeListener.onSuccess();
+                                                    }
+                                                }
+
+                                                @Override
+                                                public void onFailure() {
+                                                    Log.e("DbQuery", "Lowercase fields query failed");
+                                                    completeListener.onFailure();
+                                                }
+                                            });
+                                        } else {
+                                            Log.d("DbQuery", "Found " + g_questionList.size() + " questions using CAT_ID/TEST_ID fields");
+                                            completeListener.onSuccess();
+                                        }
+                                    }
+
+                                    @Override
+                                    public void onFailure() {
+                                        Log.e("DbQuery", "CAT_ID/TEST_ID query failed");
+                                        completeListener.onFailure();
+                                    }
+                                });
+                            } else {
+                                Log.d("DbQuery", "Found " + g_questionList.size() + " questions using QUESTIONS collection");
+                                completeListener.onSuccess();
+                            }
+                        }
+
+                        @Override
+                        public void onFailure() {
+                            Log.e("DbQuery", "QUESTIONS collection query failed");
+                            completeListener.onFailure();
+                        }
+                    });
+                } else {
+                    Log.d("DbQuery", "Found " + g_questionList.size() + " questions using primary query");
+                    completeListener.onSuccess();
+                }
+            }
+
+            @Override
+            public void onFailure() {
+                Log.e("DbQuery", "Primary query failed");
+                completeListener.onFailure();
+            }
+        });
+    }
+
+    private static void attemptLoadQuestions(String collection,
+                                             String categoryField,
+                                             String testField,
+                                             String categoryId,
+                                             String testId,
+                                             final MyCompleteListener completeListener) {
+        Log.d("DbQuery", "Querying collection='" + collection + "' where " + categoryField + "='" + categoryId + "' AND " + testField + "='" + testId + "'");
+        Log.d("DbQuery", "Looking for questions with categoryId: " + categoryId + " and testId: " + testId);
+
+        g_firestore.collection(collection)
+                .whereEqualTo(categoryField, categoryId)
+                .whereEqualTo(testField, testId)
                 .get()
                 .addOnSuccessListener(new OnSuccessListener<QuerySnapshot>() {
                     @Override
                     public void onSuccess(QuerySnapshot queryDocumentSnapshots) {
+                        Log.d("DbQuery", "Questions query returned " + queryDocumentSnapshots.size() + " docs");
+                        
+                        if (queryDocumentSnapshots.isEmpty()) {
+                            Log.w("DbQuery", "No questions found with the specified criteria");
+                            Log.w("DbQuery", "This might mean the categoryId or testId don't match what's in the database");
+                            
+                            // Let's check what's actually in the collection
+                            g_firestore.collection(collection).limit(5).get()
+                                .addOnSuccessListener(new OnSuccessListener<QuerySnapshot>() {
+                                    @Override
+                                    public void onSuccess(QuerySnapshot allQuestions) {
+                                        Log.d("DbQuery", "Sample of all questions in " + collection + " collection:");
+                                        for (DocumentSnapshot doc : allQuestions) {
+                                            Log.d("DbQuery", "  - Doc ID: " + doc.getId());
+                                            Log.d("DbQuery", "  - Category field (" + categoryField + "): " + doc.getString(categoryField));
+                                            Log.d("DbQuery", "  - Test field (" + testField + "): " + doc.getString(testField));
+                                        }
+                                        completeListener.onSuccess();
+                                    }
+                                })
+                                .addOnFailureListener(new OnFailureListener() {
+                                    @Override
+                                    public void onFailure(@NonNull Exception e) {
+                                        Log.e("DbQuery", "Failed to get sample questions: " + e.getMessage());
+                                        completeListener.onSuccess();
+                                    }
+                                });
+                            return;
+                        }
+                        
                         for (DocumentSnapshot doc : queryDocumentSnapshots) {
+                            try {
+                                Log.d("DbQuery", "Processing question document: " + doc.getId());
+                                Log.d("DbQuery", "Question data: " + doc.getData());
+                                
+                                int answerIndex;
+                                try {
+                                    Long ans = doc.getLong("ANSWER");
+                                    answerIndex = (ans != null) ? ans.intValue() : 0;
+                                } catch (Exception e) {
+                                    String ansStr = doc.getString("ANSWER");
+                                    answerIndex = ansStr != null ? Integer.parseInt(ansStr) : 0;
+                                }
 
-                            g_questionList.add(new QuestionModel(
-                                    doc.getString("QUESTION"),
-                                    doc.getString("OPTION_A"),
-                                    doc.getString("OPTION_B"),
-                                    doc.getString("OPTION_C"),
-                                    doc.getString("OPTION_D"),
-                                    doc.getLong("ANSWER").intValue()
-                            ));
+                                g_questionList.add(new QuestionModel(
+                                        doc.getString("QUESTION"),
+                                        doc.getString("A"),
+                                        doc.getString("B"),
+                                        doc.getString("C"),
+                                        doc.getString("D"),
+                                        answerIndex
+                                ));
+                                
+                                Log.d("DbQuery", "Successfully added question: " + doc.getString("QUESTION"));
+                            } catch (Exception e) {
+                                Log.e("DbQuery", "Error parsing question doc: " + doc.getId() + ", err=" + e.getMessage());
+                            }
                         }
                         completeListener.onSuccess();
                     }
@@ -185,10 +351,13 @@ public class DbQuery {
                 .addOnFailureListener(new OnFailureListener() {
                     @Override
                     public void onFailure(@NonNull Exception e) {
+                        Log.e("DbQuery", "Questions query failed for collection=" + collection + ", err=" + e.getMessage());
                         completeListener.onFailure();
                     }
                 });
     }
+
+
 
 
     public static void loadTests(final MyCompleteListener completeListener) {
@@ -292,6 +461,73 @@ public class DbQuery {
                 completeListener.onFailure();
             }
         });
+    }
+
+    public static void debugDatabaseStructure(final MyCompleteListener completeListener) {
+        Log.d("DbQuery", "=== DEBUGGING DATABASE STRUCTURE ===");
+        
+        // List all collections
+        g_firestore.collection("QUIZ").get()
+            .addOnSuccessListener(new OnSuccessListener<QuerySnapshot>() {
+                @Override
+                public void onSuccess(QuerySnapshot queryDocumentSnapshots) {
+                    Log.d("DbQuery", "QUIZ collection has " + queryDocumentSnapshots.size() + " documents:");
+                    for (QueryDocumentSnapshot doc : queryDocumentSnapshots) {
+                        Log.d("DbQuery", "  - Document ID: " + doc.getId());
+                        Log.d("DbQuery", "  - Document data: " + doc.getData());
+                    }
+                    
+                                         // Try to find questions collection - check your actual collection name
+                     g_firestore.collection("Questions").get()
+                        .addOnSuccessListener(new OnSuccessListener<QuerySnapshot>() {
+                            @Override
+                            public void onSuccess(QuerySnapshot questionSnapshot) {
+                                Log.d("DbQuery", "Question collection has " + questionSnapshot.size() + " documents:");
+                                if (!questionSnapshot.isEmpty()) {
+                                    DocumentSnapshot firstDoc = questionSnapshot.getDocuments().iterator().next();
+                                    Log.d("DbQuery", "  - Sample question document: " + firstDoc.getData());
+                                    Log.d("DbQuery", "  - Sample question fields: " + firstDoc.getData().keySet());
+                                }
+                                
+                                // Try QUESTIONS collection too
+                                g_firestore.collection("QUESTIONS").get()
+                                    .addOnSuccessListener(new OnSuccessListener<QuerySnapshot>() {
+                                        @Override
+                                        public void onSuccess(QuerySnapshot questionsSnapshot) {
+                                            Log.d("DbQuery", "QUESTIONS collection has " + questionsSnapshot.size() + " documents:");
+                                            if (!questionsSnapshot.isEmpty()) {
+                                                DocumentSnapshot firstDoc = questionsSnapshot.getDocuments().iterator().next();
+                                                Log.d("DbQuery", "  - Sample questions document: " + firstDoc.getData());
+                                                Log.d("DbQuery", "  - Sample questions fields: " + firstDoc.getData().keySet());
+                                            }
+                                            completeListener.onSuccess();
+                                        }
+                                    })
+                                    .addOnFailureListener(new OnFailureListener() {
+                                        @Override
+                                        public void onFailure(@NonNull Exception e) {
+                                            Log.d("DbQuery", "QUESTIONS collection doesn't exist or access denied");
+                                            completeListener.onSuccess();
+                                        }
+                                    });
+                            }
+                        })
+                        .addOnFailureListener(new OnFailureListener() {
+                            @Override
+                            public void onFailure(@NonNull Exception e) {
+                                Log.d("DbQuery", "Question collection doesn't exist or access denied");
+                                completeListener.onSuccess();
+                            }
+                        });
+                }
+            })
+            .addOnFailureListener(new OnFailureListener() {
+                @Override
+                public void onFailure(@NonNull Exception e) {
+                    Log.e("DbQuery", "Failed to access QUIZ collection: " + e.getMessage());
+                    completeListener.onFailure();
+                }
+            });
     }
 }
 

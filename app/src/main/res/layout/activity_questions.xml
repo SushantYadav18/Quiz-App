@@ -8,144 +8,271 @@
     android:background="@color/background_light"
     tools:context=".QuestionsActivity">
 
+    <!-- App Header/Title Section -->
     <LinearLayout
+        android:id="@+id/app_header"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@drawable/gradient_background"
+        android:orientation="vertical"
+        android:padding="16dp"
+        android:gravity="center"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Quiz App"
+            android:textColor="@color/white"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:gravity="center" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Test Your Knowledge"
+            android:textColor="@color/white"
+            android:textSize="14sp"
+            android:layout_marginTop="4dp"
+            android:gravity="center" />
+
+    </LinearLayout>
+
+    <!-- Top Bar with Question Progress and Timer -->
+    <androidx.cardview.widget.CardView
         android:id="@+id/top_bar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@color/primary"
-        android:elevation="5dp"
-        android:orientation="horizontal"
-         android:padding="5dp"
+        android:layout_margin="16dp"
+        android:layout_marginTop="8dp"
+        app:cardCornerRadius="12dp"
+        app:cardElevation="4dp"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        >
+        app:layout_constraintTop_toBottomOf="@+id/app_header"
+        app:layout_constraintEnd_toEndOf="parent">
 
-        <TextView
-            android:layout_width="wrap_content"
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="1/25"
-            android:layout_weight="1"
-            android:textStyle="bold"
-            android:textColor="@color/white"
-            android:textSize="20sp"
-            android:layout_marginLeft="5dp"
-            />
+            android:background="@drawable/gradient_background"
+            android:orientation="horizontal"
+            android:padding="16dp">
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="20 :15 min"
-            android:layout_weight="1"
-            android:textColor="@color/accent_green"
-            android:textSize="20sp"
-            android:textStyle="bold"
-            android:layout_marginLeft="5dp"/>
+            <TextView
+                android:id="@+id/question_Id"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="1/25"
+                android:textColor="@color/white"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:gravity="center_vertical" />
 
-        <Button
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Submit"
-            android:background="@drawable/button_border"
-            android:backgroundTint="@android:color/holo_orange_light"
-            android:textColor="@color/white"
+            <TextView
+                android:id="@+id/Tv_timer"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="20:15 min"
+                android:textColor="@color/accent_green"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:gravity="center" />
 
-            />
+            <Button
+                android:id="@+id/submitBtn"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:background="@drawable/button_border"
+                android:backgroundTint="@color/accent_orange"
+                android:text="Submit"
+                android:textColor="@color/white"
+                android:textSize="14sp"
+                android:textStyle="bold" />
 
-    </LinearLayout>
+        </LinearLayout>
+    </androidx.cardview.widget.CardView>
 
-
-    <LinearLayout
+    <!-- Category Bar with Bookmark and Grid View -->
+    <androidx.cardview.widget.CardView
+        android:id="@+id/category_bar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:background="@color/primaryDark"
-        app:layout_constraintStart_toStartOf="parent"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginTop="8dp"
+        app:cardCornerRadius="8dp"
+        app:cardElevation="2dp"
         app:layout_constraintEnd_toEndOf="parent"
-        android:padding="5dp"
-        app:layout_constraintTop_toBottomOf="@+id/top_bar"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/top_bar">
 
-        >
-
-        <TextView
-            android:layout_width="wrap_content"
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Gk"
-            android:layout_weight="1"
-            android:textColor="@color/white"
-            android:textSize="18dp"
-            android:layout_marginLeft="5dp"
+            android:background="@color/primaryDark"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:padding="16dp">
 
-            />
+            <TextView
+                android:id="@+id/category_name"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="General Knowledge"
+                android:textColor="@color/white"
+                android:textSize="16sp"
+                android:textStyle="bold" />
 
-        <ImageView
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            android:layout_weight="1"
-            android:src="@drawable/ic_bookmark"/>
+            <ImageView
+                android:id="@+id/bookMrk_btn"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_marginEnd="16dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:padding="4dp"
+                android:src="@drawable/ic_bookmark"
+                android:tint="@color/white" />
 
-        <ImageView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-           android:src="@drawable/ic_right_menu"
-            />
+            <ImageView
+                android:id="@+id/grid_view"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:padding="4dp"
+                android:src="@drawable/ic_right_menu"
+                android:tint="@color/white" />
 
-    </LinearLayout>
+        </LinearLayout>
+    </androidx.cardview.widget.CardView>
 
+    <!-- Questions RecyclerView -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/questions_view"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_margin="16dp"
+        android:layout_marginTop="8dp"
+        android:background="@color/surface_white"
+        android:clipToPadding="false"
+        android:padding="8dp"
+        app:layout_constraintBottom_toTopOf="@+id/bottom_bar"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/category_bar" />
 
-
-    <LinearLayout
+    <!-- Bottom Navigation Bar -->
+    <androidx.cardview.widget.CardView
+        android:id="@+id/bottom_bar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:background="@color/primary"
-        android:padding="12dp"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_margin="16dp"
+        app:cardCornerRadius="16dp"
+        app:cardElevation="6dp"
         app:layout_constraintBottom_toBottomOf="parent"
->
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent">
 
-
-        <ImageButton
-            android:layout_width="26dp"
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="@color/primaryDark"
-            android:layout_marginLeft="5dp"
-            android:layout_marginRight="10dp"
-            app:srcCompat="@drawable/ic_left" />
+            android:background="@drawable/gradient_background"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:padding="16dp">
 
-        <Button
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:background="@drawable/button_border"
-            android:text="Clear Selection"
-            android:textSize="12dp"
-            android:textColor="@color/white"/>
+            <!-- Previous Button -->
+            <ImageButton
+                android:id="@+id/nextBtn1"
+                android:layout_width="52dp"
+                android:layout_height="52dp"
+                android:background="@drawable/circle_background"
+                android:backgroundTint="@color/primaryDark"
+                android:src="@drawable/ic_left"
+                android:tint="@color/white"
+                android:contentDescription="Previous Question"
+                android:scaleType="fitCenter"
+                android:padding="12dp" />
 
+            <!-- Action Buttons Container -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="16dp">
 
-        <Button
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:background="@drawable/button_border"
-            android:text="Mark for Review"
-            android:textSize="12dp"
-            android:layout_marginLeft="5dp"
-            android:textColor="@color/white"/>
+                <!-- Top Row: Clear Selection and Mark for Review -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="8dp">
 
+                    <Button
+                        android:id="@+id/clr_sel"
+                        android:layout_width="0dp"
+                        android:layout_height="40dp"
+                        android:layout_weight="1"
+                        android:layout_marginEnd="4dp"
+                        android:background="@drawable/button_border"
+                        android:backgroundTint="@color/accent_blue"
+                        android:text="Clear Selection"
+                        android:textColor="@color/white"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:maxLines="1"
+                        android:ellipsize="end" />
 
+                    <Button
+                        android:id="@+id/mark_btn"
+                        android:layout_width="0dp"
+                        android:layout_height="40dp"
+                        android:layout_weight="1"
+                        android:layout_marginStart="4dp"
+                        android:background="@drawable/button_border"
+                        android:backgroundTint="@color/accent_purple"
+                        android:text="Mark for Review"
+                        android:textColor="@color/white"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:maxLines="1"
+                        android:ellipsize="end" />
 
-        <ImageButton
-            android:layout_width="26dp"
-            android:layout_height="wrap_content"
-            android:background="@color/primaryDark"
-            android:layout_marginLeft="15dp"
-            android:layout_marginRight="24dp"
-            app:srcCompat="@drawable/ic_right" />
+                </LinearLayout>
 
-    </LinearLayout>
+                <!-- Progress Indicator -->
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Question 1 of 2"
+                    android:textColor="@color/white"
+                    android:textSize="12sp"
+                    android:gravity="center"
+                    android:alpha="0.8" />
 
+            </LinearLayout>
 
+            <!-- Next Button -->
+            <ImageButton
+                android:id="@+id/nextBtn2"
+                android:layout_width="52dp"
+                android:layout_height="52dp"
+                android:background="@drawable/circle_background"
+                android:backgroundTint="@color/primaryDark"
+                android:src="@drawable/ic_right"
+                android:tint="@color/white"
+                android:contentDescription="Next Question"
+                android:scaleType="fitCenter"
+                android:padding="12dp" />
+
+        </LinearLayout>
+    </androidx.cardview.widget.CardView>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

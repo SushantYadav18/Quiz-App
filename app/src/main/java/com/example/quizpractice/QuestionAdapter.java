@@ -1,0 +1,189 @@
+package com.example.quizpractice;
+
+import android.graphics.Color;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.Button;
+import android.widget.TextView;
+
+import androidx.annotation.NonNull;
+import androidx.recyclerview.widget.RecyclerView;
+
+import java.util.ArrayList;
+import java.util.List;
+
+public class QuestionAdapter extends RecyclerView.Adapter<QuestionAdapter.ViewHolder> {
+
+    private List<QuestionModel> questionsList;
+    private List<Integer> selectedAnswers; // Store selected answers for each question
+    private List<Boolean> bookmarkedQuestions; // Store bookmarked questions
+    private List<Boolean> markedForReview; // Store questions marked for review
+
+    public QuestionAdapter(List<QuestionModel> questionsList) {
+        this.questionsList = questionsList;
+        this.selectedAnswers = new ArrayList<>();
+        this.bookmarkedQuestions = new ArrayList<>();
+        this.markedForReview = new ArrayList<>();
+        
+        // Initialize arrays
+        for (int i = 0; i < questionsList.size(); i++) {
+            selectedAnswers.add(-1); // -1 means no answer selected
+            bookmarkedQuestions.add(false);
+            markedForReview.add(false);
+        }
+    }
+
+    @NonNull
+    @Override
+    public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+        View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.question_item_layout, parent, false);
+        return new ViewHolder(view);
+    }
+
+    @Override
+    public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
+        holder.setData(position);
+    }
+
+    @Override
+    public int getItemCount() {
+        return questionsList.size();
+    }
+
+    public class ViewHolder extends RecyclerView.ViewHolder {
+
+        private TextView ques;
+        private Button optionA, optionB, optionC, optionD;
+        private int currentPosition;
+
+        public ViewHolder(@NonNull View itemView) {
+            super(itemView);
+
+            ques = itemView.findViewById(R.id.Tv_question);
+            optionA = itemView.findViewById(R.id.optionA);
+            optionB = itemView.findViewById(R.id.optionB);
+            optionC = itemView.findViewById(R.id.optionC);
+            optionD = itemView.findViewById(R.id.optionD);
+        }
+
+        private void setData(final int pos) {
+            currentPosition = pos;
+            QuestionModel question = questionsList.get(pos);
+            
+            ques.setText(question.getQuestion());
+            optionA.setText("A) " + question.getOptionA());
+            optionB.setText("B) " + question.getOptionB());
+            optionC.setText("C) " + question.getOptionC());
+            optionD.setText("D) " + question.getOptionD());
+
+            // Set click listeners for options
+            optionA.setOnClickListener(v -> selectAnswer(pos, 0));
+            optionB.setOnClickListener(v -> selectAnswer(pos, 1));
+            optionC.setOnClickListener(v -> selectAnswer(pos, 2));
+            optionD.setOnClickListener(v -> selectAnswer(pos, 3));
+
+            // Update button states based on selection
+            updateButtonStates(pos);
+        }
+
+        private void selectAnswer(int questionPos, int answerIndex) {
+            selectedAnswers.set(questionPos, answerIndex);
+            updateButtonStates(questionPos);
+        }
+
+        private void updateButtonStates(int questionPos) {
+            int selectedAnswer = selectedAnswers.get(questionPos);
+            
+            // Reset all buttons to default state
+            resetButtonState(optionA);
+            resetButtonState(optionB);
+            resetButtonState(optionC);
+            resetButtonState(optionD);
+
+            // Highlight selected answer
+            Button selectedButton = null;
+            switch (selectedAnswer) {
+                case 0:
+                    selectedButton = optionA;
+                    break;
+                case 1:
+                    selectedButton = optionB;
+                    break;
+                case 2:
+                    selectedButton = optionC;
+                    break;
+                case 3:
+                    selectedButton = optionD;
+                    break;
+            }
+
+            if (selectedButton != null) {
+                selectedButton.setSelected(true);
+                selectedButton.setTextColor(Color.WHITE);
+            }
+        }
+
+        private void resetButtonState(Button button) {
+            button.setSelected(false);
+            button.setTextColor(itemView.getContext().getResources().getColor(R.color.text_primary));
+        }
+    }
+
+    // Public methods for external access
+    public void clearSelection(int questionIndex) {
+        if (questionIndex >= 0 && questionIndex < selectedAnswers.size()) {
+            selectedAnswers.set(questionIndex, -1);
+            notifyItemChanged(questionIndex);
+        }
+    }
+
+    public void markForReview(int questionIndex) {
+        if (questionIndex >= 0 && questionIndex < markedForReview.size()) {
+            markedForReview.set(questionIndex, !markedForReview.get(questionIndex));
+            notifyItemChanged(questionIndex);
+        }
+    }
+
+    public void toggleBookmark(int questionIndex) {
+        if (questionIndex >= 0 && questionIndex < bookmarkedQuestions.size()) {
+            bookmarkedQuestions.set(questionIndex, !bookmarkedQuestions.get(questionIndex));
+            notifyItemChanged(questionIndex);
+        }
+    }
+
+    public int calculateScore() {
+        int score = 0;
+        for (int i = 0; i < questionsList.size(); i++) {
+            int selectedAnswer = selectedAnswers.get(i);
+            int correctAnswer = questionsList.get(i).getCorrectAnswer();
+            
+            if (selectedAnswer == correctAnswer) {
+                score++;
+            }
+        }
+        return score;
+    }
+
+    public List<Integer> getSelectedAnswers() {
+        return new ArrayList<>(selectedAnswers);
+    }
+
+    public List<Boolean> getBookmarkedQuestions() {
+        return new ArrayList<>(bookmarkedQuestions);
+    }
+
+    public List<Boolean> getMarkedForReview() {
+        return new ArrayList<>(markedForReview);
+    }
+
+    public int getAnsweredQuestionsCount() {
+        int count = 0;
+        for (Integer answer : selectedAnswers) {
+            if (answer != -1) {
+                count++;
+            }
+        }
+        return count;
+    }
+}
