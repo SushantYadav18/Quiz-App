@@ -41,16 +41,11 @@ public class CategoryAdapter extends RecyclerView.Adapter<CategoryAdapter.ViewHo
                 Log.d(TAG, "Binding category at position " + i + ": " + model.getName());
                 
                 holder.catName.setText(model.getName());
-                holder.noOfTests.setText(model.getNoOfTests() + " Tests");
+                holder.noOfTests.setText(model.getNoOfTests() + " Tests Available");
 
-                holder.startButton.setOnClickListener(v -> {
-                    Intent intent = new Intent(context, TestActivity.class);
-                    intent.putExtra("CAT_INDEX", i);
-                    context.startActivity(intent);
-                });
-
-                // Add click animation
+                // Set click listener for the entire item
                 holder.itemView.setOnClickListener(v -> {
+                    // Add click animation
                     v.animate()
                         .scaleX(0.95f)
                         .scaleY(0.95f)
@@ -60,10 +55,40 @@ public class CategoryAdapter extends RecyclerView.Adapter<CategoryAdapter.ViewHo
                                 .scaleX(1f)
                                 .scaleY(1f)
                                 .setDuration(100)
+                                .withEndAction(() -> {
+                                    // Navigate to test selection
+                                    Intent intent = new Intent(context, TestActivity.class);
+                                    intent.putExtra("CAT_INDEX", i);
+                                    context.startActivity(intent);
+                                })
                                 .start();
                         })
                         .start();
                 });
+
+                // Set click listener for start button
+                holder.startButton.setOnClickListener(v -> {
+                    // Add button click animation
+                    v.animate()
+                        .scaleX(0.9f)
+                        .scaleY(0.9f)
+                        .setDuration(100)
+                        .withEndAction(() -> {
+                            v.animate()
+                                .scaleX(1f)
+                                .scaleY(1f)
+                                .setDuration(100)
+                                .withEndAction(() -> {
+                                    // Navigate to test selection
+                                    Intent intent = new Intent(context, TestActivity.class);
+                                    intent.putExtra("CAT_INDEX", i);
+                                    context.startActivity(intent);
+                                })
+                                .start();
+                        })
+                        .start();
+                });
+
             } else {
                 Log.e(TAG, "Invalid position or null list: position=" + i + ", list size=" + (catList != null ? catList.size() : 0));
             }

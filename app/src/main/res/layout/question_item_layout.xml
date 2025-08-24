@@ -4,6 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_margin="8dp"
+    android:minWidth="300dp"
     app:cardCornerRadius="16dp"
     app:cardElevation="6dp"
     app:cardUseCompatPadding="true">
@@ -15,7 +16,7 @@
         android:orientation="vertical"
         android:padding="16dp">
 
-        <!-- Question Header -->
+        <!-- Question Header - More compact -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -43,7 +44,7 @@
 
         </LinearLayout>
 
-        <!-- Question Text -->
+        <!-- Question Text - More compact -->
         <TextView
             android:id="@+id/Tv_question"
             android:layout_width="match_parent"
@@ -57,80 +58,94 @@
             android:textSize="15sp"
             android:textStyle="bold" />
 
-        <!-- Options Container -->
-        <LinearLayout
+        <!-- Options Container - Compact and scrollable -->
+        <ScrollView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical">
+            android:scrollbars="vertical"
+            android:fadeScrollbars="false"
+            android:scrollbarStyle="insideOverlay"
+            android:maxHeight="300dp">
 
-            <!-- Option A -->
-            <Button
-                android:id="@+id/optionA"
+            <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:layout_marginBottom="8dp"
-                android:background="@drawable/option_button_background"
-                android:backgroundTint="@color/surface_white"
-                android:gravity="start|center_vertical"
-                android:paddingStart="16dp"
-                android:paddingEnd="16dp"
-                android:text="A) Paris"
-                android:textColor="@color/text_primary"
-                android:textSize="14sp"
-                android:textStyle="bold"
-                app:cornerRadius="8dp" />
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
 
-            <!-- Option B -->
-            <Button
-                android:id="@+id/optionB"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:layout_marginBottom="8dp"
-                android:background="@drawable/option_button_background"
-                android:backgroundTint="@color/surface_white"
-                android:gravity="start|center_vertical"
-                android:paddingStart="16dp"
-                android:paddingEnd="16dp"
-                android:text="B) London"
-                android:textColor="@color/text_primary"
-                android:textSize="14sp"
-                android:textStyle="bold"
-                app:cornerRadius="8dp" />
+                <!-- Option A - Smaller size -->
+                <Button
+                    android:id="@+id/optionA"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:layout_marginBottom="8dp"
+                    android:background="@drawable/option_button_background"
+                    android:backgroundTint="@color/surface_white"
+                    android:gravity="start|center_vertical"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
+                    android:text="A) Paris"
+                    android:textColor="@color/text_primary"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    app:cornerRadius="8dp"
+                    android:elevation="2dp" />
 
-            <!-- Option C -->
-            <Button
-                android:id="@+id/optionC"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:layout_marginBottom="8dp"
-                android:background="@drawable/option_button_background"
-                android:backgroundTint="@color/surface_white"
-                android:gravity="start|center_vertical"
-                android:paddingStart="16dp"
-                android:paddingEnd="16dp"
-                android:text="C) Berlin"
-                android:textColor="@color/text_primary"
-                android:textSize="14sp"
-                android:textStyle="bold"
-                app:cornerRadius="8dp" />
+                <!-- Option B - Smaller size -->
+                <Button
+                    android:id="@+id/optionB"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:layout_marginBottom="8dp"
+                    android:background="@drawable/option_button_background"
+                    android:backgroundTint="@color/surface_white"
+                    android:gravity="start|center_vertical"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
+                    android:text="B) London"
+                    android:textColor="@color/text_primary"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    app:cornerRadius="8dp"
+                    android:elevation="2dp" />
 
-            <!-- Option D -->
-            <Button
-                android:id="@+id/optionD"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:background="@drawable/option_button_background"
-                android:backgroundTint="@color/surface_white"
-                android:gravity="start|center_vertical"
-                android:paddingStart="16dp"
-                android:paddingEnd="16dp"
-                android:text="D) Madrid"
-                android:textColor="@color/text_primary"
-                android:textSize="14sp"
-                android:textStyle="bold"
-                app:cornerRadius="8dp" />
+                <!-- Option C - Smaller size -->
+                <Button
+                    android:id="@+id/optionC"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:layout_marginBottom="8dp"
+                    android:background="@drawable/option_button_background"
+                    android:backgroundTint="@color/surface_white"
+                    android:gravity="start|center_vertical"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
+                    android:text="C) Berlin"
+                    android:textColor="@color/text_primary"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    app:cornerRadius="8dp"
+                    android:elevation="2dp" />
 
-        </LinearLayout>
+                <!-- Option D - Smaller size -->
+                <Button
+                    android:id="@+id/optionD"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:background="@drawable/option_button_background"
+                    android:backgroundTint="@color/surface_white"
+                    android:gravity="start|center_vertical"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
+                    android:text="D) Madrid"
+                    android:textColor="@color/text_primary"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    app:cornerRadius="8dp"
+                    android:elevation="2dp" />
+
+            </LinearLayout>
+
+        </ScrollView>
 
     </LinearLayout>
 

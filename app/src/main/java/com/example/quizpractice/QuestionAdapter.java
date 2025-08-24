@@ -1,6 +1,7 @@
 package com.example.quizpractice;
 
 import android.graphics.Color;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -19,18 +20,21 @@ public class QuestionAdapter extends RecyclerView.Adapter<QuestionAdapter.ViewHo
     private List<Integer> selectedAnswers; // Store selected answers for each question
     private List<Boolean> bookmarkedQuestions; // Store bookmarked questions
     private List<Boolean> markedForReview; // Store questions marked for review
+    private List<Boolean> visitedQuestions; // Store visited questions
 
     public QuestionAdapter(List<QuestionModel> questionsList) {
         this.questionsList = questionsList;
         this.selectedAnswers = new ArrayList<>();
         this.bookmarkedQuestions = new ArrayList<>();
         this.markedForReview = new ArrayList<>();
+        this.visitedQuestions = new ArrayList<>();
         
         // Initialize arrays
         for (int i = 0; i < questionsList.size(); i++) {
             selectedAnswers.add(-1); // -1 means no answer selected
             bookmarkedQuestions.add(false);
             markedForReview.add(false);
+            visitedQuestions.add(false);
         }
     }
 
@@ -85,6 +89,11 @@ public class QuestionAdapter extends RecyclerView.Adapter<QuestionAdapter.ViewHo
 
             // Update button states based on selection
             updateButtonStates(pos);
+            
+            // Log for debugging
+            Log.d("QuestionAdapter", "Question " + (pos + 1) + " loaded: " + question.getQuestion());
+            Log.d("QuestionAdapter", "Options: A=" + question.getOptionA() + ", B=" + question.getOptionB() + 
+                ", C=" + question.getOptionC() + ", D=" + question.getOptionD());
         }
 
         private void selectAnswer(int questionPos, int answerIndex) {
@@ -121,16 +130,24 @@ public class QuestionAdapter extends RecyclerView.Adapter<QuestionAdapter.ViewHo
             if (selectedButton != null) {
                 selectedButton.setSelected(true);
                 selectedButton.setTextColor(Color.WHITE);
+                // Add elevation for selected state
+                selectedButton.setElevation(8f);
             }
         }
 
         private void resetButtonState(Button button) {
             button.setSelected(false);
             button.setTextColor(itemView.getContext().getResources().getColor(R.color.text_primary));
+            button.setElevation(2f);
         }
     }
 
     // Public methods for external access
+    public void setQuestionWidth(int width) {
+        // This method can be used to set question width if needed
+        Log.d("QuestionAdapter", "Question width set to: " + width);
+    }
+    
     public void clearSelection(int questionIndex) {
         if (questionIndex >= 0 && questionIndex < selectedAnswers.size()) {
             selectedAnswers.set(questionIndex, -1);
@@ -150,6 +167,74 @@ public class QuestionAdapter extends RecyclerView.Adapter<QuestionAdapter.ViewHo
             bookmarkedQuestions.set(questionIndex, !bookmarkedQuestions.get(questionIndex));
             notifyItemChanged(questionIndex);
         }
+    }
+
+    // New methods for question navigation
+    public void markQuestionAsVisited(int questionIndex) {
+        if (questionIndex >= 0 && questionIndex < visitedQuestions.size()) {
+            visitedQuestions.set(questionIndex, true);
+        }
+    }
+
+    public List<QuestionNavigationAdapter.QuestionState> getQuestionStates() {
+        List<QuestionNavigationAdapter.QuestionState> states = new ArrayList<>();
+        
+        for (int i = 0; i < questionsList.size(); i++) {
+            int state;
+            if (markedForReview.get(i)) {
+                state = QuestionNavigationAdapter.QuestionState.STATE_REVIEW;
+            } else if (selectedAnswers.get(i) != -1) {
+                state = QuestionNavigationAdapter.QuestionState.STATE_ANSWERED;
+            } else if (visitedQuestions.get(i)) {
+                state = QuestionNavigationAdapter.QuestionState.STATE_UNANSWERED;
+            } else {
+                state = QuestionNavigationAdapter.QuestionState.STATE_NOT_VISITED;
+            }
+            
+            states.add(new QuestionNavigationAdapter.QuestionState(i, state));
+        }
+        
+        return states;
+    }
+
+    public int getAnsweredCount() {
+        int count = 0;
+        for (Integer answer : selectedAnswers) {
+            if (answer != -1) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    public int getUnansweredCount() {
+        int count = 0;
+        for (int i = 0; i < questionsList.size(); i++) {
+            if (selectedAnswers.get(i) == -1 && visitedQuestions.get(i) && !markedForReview.get(i)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    public int getNotVisitedCount() {
+        int count = 0;
+        for (Boolean visited : visitedQuestions) {
+            if (!visited) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    public int getReviewCount() {
+        int count = 0;
+        for (Boolean review : markedForReview) {
+            if (review) {
+                count++;
+            }
+        }
+        return count;
     }
 
     public int calculateScore() {

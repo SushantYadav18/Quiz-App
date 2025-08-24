@@ -139,7 +139,7 @@
 
     </LinearLayout>
 
-    <!-- Categories RecyclerView -->
+    <!-- Categories RecyclerView - Fixed for proper scrolling -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/cat_grid"
         android:layout_width="0dp"
@@ -148,6 +148,11 @@
         android:layout_marginBottom="16dp"
         android:clipToPadding="false"
         android:paddingBottom="16dp"
+        android:scrollbars="vertical"
+        android:fadeScrollbars="false"
+        android:scrollbarStyle="insideOverlay"
+        android:scrollbarThumbVertical="@drawable/custom_scrollbar"
+        android:scrollbarTrackVertical="@drawable/custom_scrollbar_track"
         app:layout_constraintTop_toBottomOf="@id/statsRow"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
