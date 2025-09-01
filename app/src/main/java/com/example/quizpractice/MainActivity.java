@@ -1,7 +1,9 @@
 package com.example.quizpractice;
 
 import android.content.Context;
+import android.content.Intent;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -26,11 +28,14 @@ import com.example.quizpractice.databinding.ActivityMainBinding;
 import com.example.quizpractice.CategoryFragment;
 import com.example.quizpractice.LeaderBoardFragment;
 import com.example.quizpractice.AccountFragment;
+import com.google.firebase.auth.FirebaseAuth;
 
 import java.util.Locale;
 
 public class MainActivity extends AppCompatActivity {
 
+    private static final String TAG = "MainActivity";
+    
     private ActivityMainBinding binding;
     private BottomNavigationView bottomNavigationView;
     private FrameLayout mainFrame;
@@ -82,6 +87,41 @@ public class MainActivity extends AppCompatActivity {
             getSupportActionBar().setTitle(title);
         }
     }
+    
+    /**
+     * Redirect user to login activity when session is invalid
+     */
+    private void redirectToLogin() {
+        Intent loginIntent = new Intent(this, LoginActivity.class);
+        loginIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        startActivity(loginIntent);
+        finish();
+    }
+    
+    /**
+     * Handle session logout
+     */
+    public void logout() {
+        SessionManager sessionManager = SessionManager.getInstance(this);
+        sessionManager.logout();
+        
+        // Sign out from Firebase
+        FirebaseAuth.getInstance().signOut();
+        
+        // Redirect to login
+        redirectToLogin();
+    }
+    
+    @Override
+    protected void onPause() {
+        super.onPause();
+        
+        // Update last activity when app goes to background
+        SessionManager sessionManager = SessionManager.getInstance(this);
+        if (sessionManager.isLoggedIn()) {
+            sessionManager.updateLastActivity();
+        }
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -90,6 +130,18 @@ public class MainActivity extends AppCompatActivity {
         try {
             binding = ActivityMainBinding.inflate(getLayoutInflater());
             setContentView(binding.getRoot());
+
+            // Check session validity
+            SessionManager sessionManager = SessionManager.getInstance(this);
+            if (!sessionManager.isLoggedIn()) {
+                Log.w(TAG, "No valid session found, redirecting to login");
+                redirectToLogin();
+                return;
+            }
+            
+            // Refresh session on activity start
+            sessionManager.refreshSession();
+            Log.d(TAG, "Session refreshed for user: " + sessionManager.getUserEmail());
 
             // Initialize views
             mainFrame = findViewById(R.id.main_frame);
@@ -216,6 +268,14 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        
+        // Refresh session on resume
+        SessionManager sessionManager = SessionManager.getInstance(this);
+        if (sessionManager.isLoggedIn()) {
+            sessionManager.refreshSession();
+        }
+        
+        // Reload user data and header
         reloadUserDataAndHeader();
     }
 

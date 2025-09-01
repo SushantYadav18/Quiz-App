@@ -17,11 +17,12 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.quizpractice.databinding.ActivityLoginBinding;
-import com.google.android.gms.auth.api.identity.BeginSignInRequest;
-import com.google.android.gms.auth.api.identity.Identity;
-import com.google.android.gms.auth.api.identity.SignInClient;
-import com.google.android.gms.auth.api.identity.SignInCredential;
+import com.google.android.gms.auth.api.signin.GoogleSignIn;
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
+import com.google.android.gms.auth.api.signin.GoogleSignInClient;
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
 import com.google.android.gms.common.api.ApiException;
+import com.google.android.gms.tasks.Task;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
@@ -35,12 +36,13 @@ import com.google.firebase.database.FirebaseDatabase;
 
 public class LoginActivity extends AppCompatActivity {
     private static final String TAG = "LoginActivity";
+    private static final int RC_SIGN_IN = 9001;
     private ActivityLoginBinding binding;
     private FirebaseAuth mAuth;
     private DatabaseReference mDatabase;
-    private SignInClient oneTapClient;
-    private ActivityResultLauncher<IntentSenderRequest> signInLauncher;
+    private GoogleSignInClient mGoogleSignInClient;
     private ProgressBar progressBar;
+    private ActivityResultLauncher<Intent> signInLauncher;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -52,9 +54,14 @@ public class LoginActivity extends AppCompatActivity {
         mAuth = FirebaseAuth.getInstance();
         mDatabase = FirebaseDatabase.getInstance().getReference();
 
+        // Log Firebase configuration
+        Log.d(TAG, "Firebase Auth initialized: " + (mAuth != null));
+        Log.d(TAG, "Firebase Database initialized: " + (mDatabase != null));
+
         // Initialize Google Sign-In
-        oneTapClient = Identity.getSignInClient(this);
+        Log.d(TAG, "About to setup Google Sign-In");
         setupGoogleSignIn();
+        Log.d(TAG, "Google Sign-In setup completed, client: " + (mGoogleSignInClient != null));
 
         // Initialize views
         progressBar = binding.progressBar;
@@ -64,7 +71,10 @@ public class LoginActivity extends AppCompatActivity {
         TextInputEditText passwordEdit = binding.password;
         MaterialButton loginButton = binding.loginB;
         MaterialButton signupButton = binding.signupB;
-        View googleSignInButton = binding.GsignInButton;
+        View googleSignInButton = findViewById(R.id.Gsign_in_button);
+
+        // Log view initialization
+        Log.d(TAG, "Google Sign-In button found: " + (googleSignInButton != null));
 
         // Set click listeners
         loginButton.setOnClickListener(v -> {
@@ -78,115 +88,184 @@ public class LoginActivity extends AppCompatActivity {
             startActivity(new Intent(LoginActivity.this, SignUpActivity.class));
         });
 
-        googleSignInButton.setOnClickListener(v -> googleSignIn());
+        googleSignInButton.setOnClickListener(v -> {
+            Log.d(TAG, "Google Sign-In button clicked");
+            googleSignIn();
+        });
+
+        // Initialize signInLauncher
+        signInLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    Log.d(TAG, "ActivityResultLauncher triggered with result code: " + result.getResultCode());
+                    if (result.getResultCode() == RESULT_OK) {
+                        Log.d(TAG, "Result OK, processing Google Sign-In result");
+                        Task<GoogleSignInAccount> task = GoogleSignIn.getSignedInAccountFromIntent(result.getData());
+                        firebaseAuthWithGoogle(task);
+                    } else {
+                        Log.e(TAG, "Google Sign-In result not OK: " + result.getResultCode());
+                        if (result.getData() != null) {
+                            Log.d(TAG, "Result data: " + result.getData().toString());
+                        }
+                    }
+                }
+        );
     }
 
     private void setupGoogleSignIn() {
-        signInLauncher = registerForActivityResult(
-            new ActivityResultContracts.StartIntentSenderForResult(),
-            result -> {
-                try {
-                    SignInCredential credential = oneTapClient.getSignInCredentialFromIntent(result.getData());
-                    String idToken = credential.getGoogleIdToken();
-                    if (idToken != null) {
-                        firebaseAuthWithGoogle(idToken);
-                    }
-                } catch (ApiException e) {
-                    Log.w(TAG, "Google sign in failed", e);
-                    Toast.makeText(this, "Google sign in failed: " + e.getMessage(),
-                            Toast.LENGTH_SHORT).show();
-                }
-            });
+        try {
+            String webClientId = getString(R.string.default_web_client_id);
+            Log.d(TAG, "Setting up Google Sign-In with web client ID: " + webClientId);
+            
+            if (webClientId == null || webClientId.isEmpty()) {
+                Log.e(TAG, "Web client ID is null or empty!");
+                Toast.makeText(this, "Google Sign-In configuration error: Missing web client ID", 
+                        Toast.LENGTH_LONG).show();
+                return;
+            }
+            
+            GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                    .requestIdToken(webClientId)
+                    .requestEmail()
+                    .requestProfile()
+                    .build();
+
+            Log.d(TAG, "GoogleSignInOptions built successfully");
+            mGoogleSignInClient = GoogleSignIn.getClient(this, gso);
+            Log.d(TAG, "Google Sign-In client created successfully: " + (mGoogleSignInClient != null));
+        } catch (Exception e) {
+            Log.e(TAG, "Error setting up Google Sign-In", e);
+            Toast.makeText(this, "Failed to setup Google Sign-In: " + e.getMessage(), 
+                    Toast.LENGTH_LONG).show();
+        }
     }
 
     private void googleSignIn() {
-        BeginSignInRequest signInRequest = BeginSignInRequest.builder()
-                .setGoogleIdTokenRequestOptions(BeginSignInRequest.GoogleIdTokenRequestOptions.builder()
-                        .setSupported(true)
-                        .setServerClientId(getString(R.string.default_web_client_id))
-                        .setFilterByAuthorizedAccounts(false)
-                        .build())
-                .build();
-
-        oneTapClient.beginSignIn(signInRequest)
-                .addOnSuccessListener(this, result -> {
-                    try {
-                        IntentSenderRequest intentSenderRequest = new IntentSenderRequest.Builder(
-                                result.getPendingIntent().getIntentSender()).build();
-                        signInLauncher.launch(intentSenderRequest);
-                    } catch (Exception e) {
-                        Log.e(TAG, "Couldn't start One Tap UI: " + e.getLocalizedMessage());
-                    }
-                })
-                .addOnFailureListener(this, e -> {
-                    Log.e(TAG, "Google sign in failed", e);
-                    Toast.makeText(this, "Google sign in failed: " + e.getMessage(),
-                            Toast.LENGTH_SHORT).show();
-                });
+        Log.d(TAG, "googleSignIn() method called");
+        
+        if (mGoogleSignInClient == null) {
+            Log.e(TAG, "GoogleSignInClient is null! Re-initializing...");
+            setupGoogleSignIn();
+            if (mGoogleSignInClient == null) {
+                Log.e(TAG, "Failed to create GoogleSignInClient after retry");
+                Toast.makeText(this, "Google Sign-In not available. Please check your configuration.", 
+                        Toast.LENGTH_LONG).show();
+                return;
+            }
+        }
+        
+        try {
+            Log.d(TAG, "Getting sign-in intent from GoogleSignInClient");
+            Intent signInIntent = mGoogleSignInClient.getSignInIntent();
+            Log.d(TAG, "Sign-in intent created successfully, launching...");
+            signInLauncher.launch(signInIntent);
+            Log.d(TAG, "Sign-in intent launched successfully");
+        } catch (Exception e) {
+            Log.e(TAG, "Error launching Google Sign-In", e);
+            Toast.makeText(this, "Google Sign-In not available: " + e.getMessage(), 
+                    Toast.LENGTH_LONG).show();
+        }
     }
 
-    private void firebaseAuthWithGoogle(String idToken) {
+    private void firebaseAuthWithGoogle(Task<GoogleSignInAccount> completedTask) {
+        Log.d(TAG, "Starting Firebase authentication with Google");
         setLoading(true);
-        AuthCredential credential = GoogleAuthProvider.getCredential(idToken, null);
-        mAuth.signInWithCredential(credential)
-                .addOnCompleteListener(this, task -> {
-                    setLoading(false);
-                    if (task.isSuccessful()) {
+        try {
+            GoogleSignInAccount account = completedTask.getResult(ApiException.class);
+            if (account != null) {
+                Log.d(TAG, "Google Sign-In successful, account: " + account.getEmail());
+                AuthCredential credential = GoogleAuthProvider.getCredential(account.getIdToken(), null);
+                mAuth.signInWithCredential(credential)
+                        .addOnCompleteListener(this, task -> {
+                            setLoading(false);
+                            if (task.isSuccessful()) {
+                                Log.d(TAG, "Firebase authentication successful");
+                                Toast.makeText(LoginActivity.this, "Google sign-in successful!", Toast.LENGTH_SHORT).show();
+                                FirebaseUser user = mAuth.getCurrentUser();
 
-                        Toast.makeText(LoginActivity.this, "Google sign-in successful!", Toast.LENGTH_SHORT).show();
-                        FirebaseUser user = mAuth.getCurrentUser();
+                                if(task.getResult().getAdditionalUserInfo().isNewUser()){
+                                    Log.d(TAG, "New user, creating user data");
+                                    DbQuery.createUserData(user.getEmail(), user.getDisplayName(), new MyCompleteListener() {
+                                        @Override
+                                        public void onSuccess() {
+                                            Log.d(TAG, "User data created successfully");
+                                            
+                                            // Create user session for new Google Sign-In user
+                                            FirebaseUser user = mAuth.getCurrentUser();
+                                            if (user != null) {
+                                                SessionManager sessionManager = SessionManager.getInstance(LoginActivity.this);
+                                                sessionManager.createSession(user.getUid(), user.getEmail(), user.getDisplayName());
+                                                
+                                                Log.d(TAG, "Google Sign-In session created successfully for new user: " + user.getEmail());
+                                            }
+                                            
+                                            DbQuery.loadData(new MyCompleteListener() {
+                                                @Override
+                                                public void onSuccess() {
+                                                    Log.d(TAG, "Data loaded successfully, starting MainActivity");
+                                                    startActivity(new Intent(LoginActivity.this, MainActivity.class));
+                                                    finish();
+                                                }
 
-                        if(task.getResult().getAdditionalUserInfo().isNewUser()){
-                            DbQuery.createUserData(user.getEmail(), user.getDisplayName(), new MyCompleteListener() {
-                                @Override
-                                public void onSuccess() {
+                                                @Override
+                                                public void onFailure() {
+                                                    Log.e(TAG, "Failed to load data");
+                                                    Toast.makeText(LoginActivity.this, "Something went Wrong !Please Try Again  Later !!", Toast.LENGTH_SHORT).show();
+                                                }
+                                            });
+                                        }
 
+                                        @Override
+                                        public void onFailure() {
+                                            Log.e(TAG, "Failed to create user data");
+                                            Toast.makeText(LoginActivity.this, "Something went Wrong !Please Try Again  Later !!", Toast.LENGTH_SHORT).show();
+                                        }
+                                    });
+                                }
+                                else {
+                                    Log.d(TAG, "Existing user, loading data");
+                                    
+                                    // Create user session for existing Google Sign-In user
+                                    FirebaseUser existingUser = mAuth.getCurrentUser();
+                                    if (existingUser != null) {
+                                        SessionManager sessionManager = SessionManager.getInstance(LoginActivity.this);
+                                        sessionManager.createSession(existingUser.getUid(), existingUser.getEmail(), existingUser.getDisplayName());
+                                        
+                                        Log.d(TAG, "Google Sign-In session created successfully for existing user: " + existingUser.getEmail());
+                                    }
+                                    
                                     DbQuery.loadData(new MyCompleteListener() {
                                         @Override
                                         public void onSuccess() {
-
+                                            Log.d(TAG, "Data loaded successfully, starting MainActivity");
                                             startActivity(new Intent(LoginActivity.this, MainActivity.class));
                                             finish();
                                         }
 
                                         @Override
                                         public void onFailure() {
+                                            Log.e(TAG, "Failed to load data");
                                             Toast.makeText(LoginActivity.this, "Something went Wrong !Please Try Again  Later !!", Toast.LENGTH_SHORT).show();
                                         }
                                     });
-
-                                    startActivity(new Intent(LoginActivity.this, MainActivity.class));
-                                    finish();
                                 }
 
-                                @Override
-                                public void onFailure() {
-
-                                    Toast.makeText(LoginActivity.this, "Something went Wrong !Please Try Again  Later !!", Toast.LENGTH_SHORT).show();
-                                }
-                            });
-                        }
-                        else {
-                            DbQuery.loadData(new MyCompleteListener() {
-                                @Override
-                                public void onSuccess() {
-                                    startActivity(new Intent(LoginActivity.this, MainActivity.class));
-                                    finish();
-                                }
-
-                                @Override
-                                public void onFailure() {
-                                    Toast.makeText(LoginActivity.this, "Something went Wrong !Please Try Again  Later !!", Toast.LENGTH_SHORT).show();
-                                }
-                            });
-                        }
-
-                    } else {
-                        Log.w(TAG, "signInWithCredential:failure", task.getException());
-                        Toast.makeText(LoginActivity.this, "Authentication failed: " +
-                                task.getException().getMessage(), Toast.LENGTH_SHORT).show();
-                    }
-                });
+                            } else {
+                                Log.e(TAG, "Firebase authentication failed", task.getException());
+                                Toast.makeText(LoginActivity.this, "Authentication failed: " +
+                                        task.getException().getMessage(), Toast.LENGTH_SHORT).show();
+                            }
+                        });
+            } else {
+                Log.e(TAG, "Google Sign-In account is null");
+                setLoading(false);
+            }
+        } catch (ApiException e) {
+            Log.e(TAG, "Google sign in failed with API exception", e);
+            setLoading(false);
+            Toast.makeText(this, "Google sign in failed: " + e.getMessage(),
+                    Toast.LENGTH_SHORT).show();
+        }
     }
 
     private void saveUserData(FirebaseUser user) {
@@ -232,22 +311,28 @@ public class LoginActivity extends AppCompatActivity {
                     if (task.isSuccessful()) {
                         Toast.makeText(LoginActivity.this, "Login successful!",
                                 Toast.LENGTH_SHORT).show();
-                       DbQuery.loadData(new MyCompleteListener() {
-                           @Override
-                           public void onSuccess() {
+                        
+                        // Create user session
+                        FirebaseUser user = mAuth.getCurrentUser();
+                        if (user != null) {
+                            SessionManager sessionManager = SessionManager.getInstance(this);
+                            sessionManager.createSession(user.getUid(), email, user.getDisplayName() != null ? user.getDisplayName() : "User");
+                            
+                            Log.d(TAG, "User session created successfully for: " + email);
+                        }
+                        
+                        DbQuery.loadData(new MyCompleteListener() {
+                            @Override
+                            public void onSuccess() {
+                                startActivity(new Intent(LoginActivity.this, MainActivity.class));
+                                finish();
+                            }
 
-                               startActivity(new Intent(LoginActivity.this, MainActivity.class));
-                               finish();
-                           }
-
-                           @Override
-                           public void onFailure() {
-
-                               Toast.makeText(LoginActivity.this, "Something went Wrong !Please Try Again  Later !!", Toast.LENGTH_SHORT).show();
-                           }
-                       });
-
-
+                            @Override
+                            public void onFailure() {
+                                Toast.makeText(LoginActivity.this, "Something went Wrong !Please Try Again  Later !!", Toast.LENGTH_SHORT).show();
+                            }
+                        });
 
                     } else {
                         String errorMessage = task.getException() != null ?
@@ -262,7 +347,7 @@ public class LoginActivity extends AppCompatActivity {
         progressBar.setVisibility(isLoading ? View.VISIBLE : View.GONE);
         binding.loginB.setEnabled(!isLoading);
         binding.signupB.setEnabled(!isLoading);
-        binding.GsignInButton.setEnabled(!isLoading);
+        findViewById(R.id.Gsign_in_button).setEnabled(!isLoading);
         binding.emailid.setEnabled(!isLoading);
         binding.password.setEnabled(!isLoading);
     }

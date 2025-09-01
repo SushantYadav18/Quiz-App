@@ -10,7 +10,7 @@
     <color name="primary">#0040FF</color>
     <color name="primaryDark">#00297A</color>
     <color name="gray">#757575</color>
-    <color name="gray_light">#F5F5F5</color>
+    <color name="gray_light1">#F5F5F5</color>
     <color name="error">#FF3B30</color>
     <color name="success">#34C759</color>
     
@@ -26,4 +26,5 @@
     <color name="text_primary">#1F2937</color>
     <color name="text_secondary">#6B7280</color>
     <color name="border_light">#E5E7EB</color>
+    <color name="gray_light">#F3F4F6</color>
 </resources>

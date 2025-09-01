@@ -23,6 +23,7 @@ import java.util.concurrent.TimeUnit;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.GridLayoutManager;
 import java.util.List;
+import android.content.Intent;
 
 // Custom ItemDecoration to ensure proper question sizing
 class QuestionItemDecoration extends RecyclerView.ItemDecoration {
@@ -57,6 +58,10 @@ public class QuestionsActivity extends AppCompatActivity {
     private int currentQuestionIndex = 0;
     private int totalQuestions = 0;
     private CountDownTimer timer;
+    
+    // Time tracking
+    private long startTime;
+    private long timeTaken;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -64,11 +69,36 @@ public class QuestionsActivity extends AppCompatActivity {
         EdgeToEdge.enable(this);
         setContentView(R.layout.activity_questions);
 
+        // Check if this is a restart
+        boolean isRestart = getIntent().getBooleanExtra("RESTART_QUIZ", false);
+        if (isRestart) {
+            // Clear previous answers for re-attempt
+            clearPreviousAnswers();
+        }
+
+        // Record start time
+        startTime = System.currentTimeMillis();
+
         init();
         setupQuestionData();
         setupClickListeners();
         startTimer();
 
+    }
+
+    private void clearPreviousAnswers() {
+        // Clear previous answers from QuestionAdapter
+        if (questionAdapter != null) {
+            questionAdapter.clearAllSelections();
+        }
+        
+        // Reset current question index
+        currentQuestionIndex = 0;
+        
+        // Reset timer
+        startTime = System.currentTimeMillis();
+        
+        Log.d("QuestionsActivity", "Previous answers cleared for re-attempt");
     }
 
     private void init() {
@@ -407,6 +437,9 @@ public class QuestionsActivity extends AppCompatActivity {
         // Cancel timer first
         cancelTimer();
         
+        // Calculate time taken
+        timeTaken = System.currentTimeMillis() - startTime;
+        
         // Calculate score and show results
         if (questionAdapter != null) {
             int score = questionAdapter.calculateScore();
@@ -417,7 +450,15 @@ public class QuestionsActivity extends AppCompatActivity {
                 String.format("Quiz completed! Score: %d/%d (%d%%)", score, totalQuestions, percentage),
                 Toast.LENGTH_LONG).show();
 
-            // TODO: Save score to database and navigate to results screen
+            // Navigate to ResultActivity
+            Intent intent = new Intent(this, ResultActivity.class);
+            intent.putExtra("SCORE", score);
+            intent.putExtra("TOTAL_QUESTIONS", totalQuestions);
+            intent.putExtra("TIME_TAKEN", timeTaken);
+            intent.putExtra("CATEGORY_ID", DbQuery.g_catList.get(DbQuery.g_selected_cat_index).getDocID());
+            intent.putExtra("TEST_ID", g_testList.get(DbQuery.g_selected_test_index).getId());
+            
+            startActivity(intent);
             finish();
         }
     }

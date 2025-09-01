@@ -2,6 +2,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Internet permission required for Google Sign-In -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
     <application
         android:name=".QuizApplication"
         android:allowBackup="true"
@@ -32,6 +36,10 @@
         <activity
             android:name=".LoginActivity"
             android:exported="false" />
+        <activity
+            android:name=".ResultActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Quizpractice.NoActionBar" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

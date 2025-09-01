@@ -1,6 +1,5 @@
 package com.example.quizpractice;
 
-import android.util.ArrayMap;
 import android.util.Log;
 import android.util.Printer;
 
@@ -16,76 +15,85 @@ import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 import com.google.firebase.firestore.QuerySnapshot;
 import com.google.firebase.firestore.WriteBatch;
+import com.google.firebase.firestore.SetOptions;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Collections;
 
 public class DbQuery {
 
     public static FirebaseFirestore g_firestore = FirebaseFirestore.getInstance();
     public static List<CategoryModel> g_catList = new ArrayList<>();
     public static List<TestModel> g_testList = new ArrayList<>();
-    public static int g_selected_cat_index = 0;
+    public static List<QuestionModel> g_questionList = new ArrayList<>();
+    public static List<RankModel> g_rankList = new ArrayList<>();
 
-    public static ProfileModel myProfile = new ProfileModel("NA" ,"null");
+    public static int g_selected_cat_index = 0;
     public static int g_selected_test_index = 0;
-  public static  List<QuestionModel> g_questionList = new ArrayList<>();
+    public static int g_quesIndex = 0;
+
+    public static ProfileModel myProfile = new ProfileModel();
+    public static int g_total_question = 0;
 
     public static void createUserData( String name, String email, MyCompleteListener completeListener) {
-
-
-        Map<String, Object> userData = new ArrayMap<>();
-        userData.put("EMAIL_ID", email);
+        Map<String, Object> userData = new HashMap<>();
         userData.put("NAME", name);
+        userData.put("EMAIL_ID", email);
         userData.put("TOTAL_SCORE", 0);
 
-
-       DocumentReference userDoc = g_firestore.collection("USERS").document(FirebaseAuth.getInstance().getCurrentUser().getUid());
-
-        WriteBatch batch = g_firestore.batch();
-
-        batch.set(userDoc, userData);
-        DocumentReference countDoc = g_firestore.collection("USERS").document("TOTAL_USERS");
-
-        batch.update(countDoc, "COUNT", FieldValue.increment(1));
-        batch.commit()
-        .addOnSuccessListener(new OnSuccessListener<Void>() {
-            @Override
-            public void onSuccess(Void aVoid) {
-
-                completeListener.onSuccess();
-            }
-        })
-                .addOnFailureListener(new OnFailureListener() {
-                    @Override
-                    public void onFailure( @NonNull Exception e) {
-                completeListener.onFailure();
-                    }
-                });
-
-
+        String userId = FirebaseAuth.getInstance().getCurrentUser().getUid();
+        
+        g_firestore.collection("USERS").document(userId).set(userData)
+            .addOnSuccessListener(new OnSuccessListener<Void>() {
+                @Override
+                public void onSuccess(Void unused) {
+                    // Set profile data
+                    myProfile.setUserId(userId);
+                    myProfile.setName(name);
+                    myProfile.setEmail(email);
+                    myProfile.setProfile("null");
+                    
+                    completeListener.onSuccess();
+                }
+            })
+            .addOnFailureListener(new OnFailureListener() {
+                @Override
+                public void onFailure(@NonNull Exception e) {
+                    completeListener.onFailure();
+                }
+            });
     }
 
     public  static  void  getUserData(final MyCompleteListener completeListener){
-        g_firestore.collection("USERS").document(FirebaseAuth.getInstance().getUid())
-                .get()
-                .addOnSuccessListener(new OnSuccessListener<DocumentSnapshot>() {
-                    @Override
-                    public void onSuccess(DocumentSnapshot documentSnapshot) {
-                        Log.d("DbQuery", "User document data: " + documentSnapshot.getData());
+        g_firestore.collection("USERS").document(FirebaseAuth.getInstance().getCurrentUser().getUid()).get()
+            .addOnSuccessListener(new OnSuccessListener<DocumentSnapshot>() {
+                @Override
+                public void onSuccess(DocumentSnapshot documentSnapshot) {
+                    if (documentSnapshot.exists()) {
+                        String userId = FirebaseAuth.getInstance().getCurrentUser().getUid();
+                        myProfile.setUserId(userId);
                         myProfile.setName(documentSnapshot.getString("NAME"));
                         myProfile.setEmail(documentSnapshot.getString("EMAIL_ID"));
-                        completeListener.onSuccess();
+                        myProfile.setProfile("null");
+                        
+                        Long totalScore = documentSnapshot.getLong("TOTAL_SCORE");
+                        if (totalScore != null) {
+                            // Store total score in profile if needed
+                            // myProfile.setTotalScore(totalScore.intValue()); // Uncomment if you add this field
+                        }
                     }
-                })
-                .addOnFailureListener(new OnFailureListener() {
-                    @Override
-                    public void onFailure(@NonNull Exception e) {
-                        completeListener.onFailure();
-                    }
-                });
+                    completeListener.onSuccess();
+                }
+            })
+            .addOnFailureListener(new OnFailureListener() {
+                @Override
+                public void onFailure(@NonNull Exception e) {
+                    completeListener.onFailure();
+                }
+            });
     }
 
     public static void loadCategories(final MyCompleteListener completeListener) {
@@ -401,20 +409,53 @@ public class DbQuery {
                             for (int i = 1; i <= noOfTests; i++) {
                                 String testIdKey = "TEST" + i + "_ID";
                                 String testTimeKey = "TEST" + i + "_TIME";
+                                String testDifficultyKey = "TEST" + i + "_DIFFICULTY";
+                                String testRequiredScoreKey = "TEST" + i + "_REQUIRED_SCORE";
                                 
                                 String testId = documentSnapshot.getString(testIdKey);
                                 Long testTime = documentSnapshot.getLong(testTimeKey);
+                                String testDifficulty = documentSnapshot.getString(testDifficultyKey);
+                                Long testRequiredScore = documentSnapshot.getLong(testRequiredScoreKey);
 
                                 Log.d("DbQuery", "Checking test " + i + ":");
                                 Log.d("DbQuery", "  - " + testIdKey + " = " + testId);
                                 Log.d("DbQuery", "  - " + testTimeKey + " = " + testTime);
+                                Log.d("DbQuery", "  - " + testDifficultyKey + " = " + testDifficulty);
+                                Log.d("DbQuery", "  - " + testRequiredScoreKey + " = " + testRequiredScore);
 
                                 if (testId != null && testTime != null) {
-                                    Log.d("DbQuery", "Adding test: " + testId + " with time: " + testTime);
+                                    // Set default difficulty if not specified
+                                    if (testDifficulty == null) {
+                                        if (i <= 3) {
+                                            testDifficulty = "EASY";
+                                        } else if (i <= 6) {
+                                            testDifficulty = "MEDIUM";
+                                        } else {
+                                            testDifficulty = "HARD";
+                                        }
+                                    }
+                                    
+                                    // Set default required score if not specified
+                                    int requiredScore = 0;
+                                    if (testRequiredScore != null) {
+                                        requiredScore = testRequiredScore.intValue();
+                                    } else {
+                                        if (testDifficulty.equals("MEDIUM")) {
+                                            requiredScore = 70;
+                                        } else if (testDifficulty.equals("HARD")) {
+                                            requiredScore = 85;
+                                        }
+                                    }
+                                    
+                                    Log.d("DbQuery", "Adding test: " + testId + " with time: " + testTime + 
+                                          ", difficulty: " + testDifficulty + ", required score: " + requiredScore);
+                                    
                                     g_testList.add(new TestModel(
                                         testId,
                                         0, // Initial score
-                                        testTime.intValue()
+                                        testTime.intValue(),
+                                        testDifficulty,
+                                        requiredScore
                                     ));
                                 } else {
                                     Log.e("DbQuery", "Missing data for test " + i + 
@@ -528,6 +569,218 @@ public class DbQuery {
                     completeListener.onFailure();
                 }
             });
+    }
+
+    // Save user quiz result to database
+    public static void saveResult(int score, final MyCompleteListener completeListener) {
+        if (FirebaseAuth.getInstance().getCurrentUser() == null) {
+            Log.e("DbQuery", "User not authenticated");
+            completeListener.onFailure();
+            return;
+        }
+
+        String userId = FirebaseAuth.getInstance().getCurrentUser().getUid();
+        Log.d("DbQuery", "Saving result for user: " + userId + " with score: " + score);
+
+        // Create a batch write for atomic operations
+        WriteBatch batch = g_firestore.batch();
+
+        // 1. Update user's total score
+        DocumentReference userDoc = g_firestore.collection("USERS").document(userId);
+        batch.update(userDoc, "TOTAL_SCORE", FieldValue.increment(score));
+
+        // 2. Save individual test result (this will overwrite previous score for re-attempts)
+        if (g_selected_cat_index >= 0 && g_selected_cat_index < g_catList.size() &&
+            g_selected_test_index >= 0 && g_selected_test_index < g_testList.size()) {
+            
+            String categoryId = g_catList.get(g_selected_cat_index).getDocID();
+            String testId = g_testList.get(g_selected_test_index).getId();
+            
+            // Create or update test result document
+            DocumentReference testResultDoc = userDoc.collection("TEST_RESULTS")
+                .document(categoryId + "_" + testId);
+            
+            Map<String, Object> testResult = new HashMap<>();
+            testResult.put("CATEGORY_ID", categoryId);
+            testResult.put("TEST_ID", testId);
+            testResult.put("SCORE", score);
+            testResult.put("MAX_SCORE", g_questionList.size());
+            testResult.put("TIMESTAMP", FieldValue.serverTimestamp());
+            testResult.put("ATTEMPT_COUNT", FieldValue.increment(1));
+            
+            batch.set(testResultDoc, testResult, SetOptions.merge());
+            
+            Log.d("DbQuery", "Saving test result for category: " + categoryId + ", test: " + testId);
+        }
+
+        // 3. Update leaderboard if this is a new high score
+        DocumentReference leaderboardDoc = g_firestore.collection("LEADERBOARD")
+            .document("GLOBAL");
+        
+        Map<String, Object> leaderboardData = new HashMap<>();
+        Map<String, Object> userData = new HashMap<>();
+        userData.put("NAME", myProfile.getName());
+        userData.put("EMAIL", myProfile.getEmail());
+        userData.put("TOTAL_SCORE", FieldValue.increment(score));
+        userData.put("LAST_UPDATED", FieldValue.serverTimestamp());
+        leaderboardData.put(userId, userData);
+        
+        batch.set(leaderboardDoc, leaderboardData, SetOptions.merge());
+
+        // Execute the batch
+        batch.commit()
+            .addOnSuccessListener(new OnSuccessListener<Void>() {
+                @Override
+                public void onSuccess(Void aVoid) {
+                    Log.d("DbQuery", "Result saved successfully");
+                    completeListener.onSuccess();
+                }
+            })
+            .addOnFailureListener(new OnFailureListener() {
+                @Override
+                public void onFailure(@NonNull Exception e) {
+                    Log.e("DbQuery", "Failed to save result: " + e.getMessage());
+                    completeListener.onFailure();
+                }
+            });
+    }
+
+    // Get user's test result for a specific test
+    public static void getUserTestResult(String categoryId, String testId, final MyCompleteListener completeListener) {
+        if (FirebaseAuth.getInstance().getCurrentUser() == null) {
+            completeListener.onFailure();
+            return;
+        }
+
+        String userId = FirebaseAuth.getInstance().getCurrentUser().getUid();
+        DocumentReference testResultDoc = g_firestore.collection("USERS")
+            .document(userId)
+            .collection("TEST_RESULTS")
+            .document(categoryId + "_" + testId);
+
+        testResultDoc.get()
+            .addOnSuccessListener(new OnSuccessListener<DocumentSnapshot>() {
+                @Override
+                public void onSuccess(DocumentSnapshot documentSnapshot) {
+                    if (documentSnapshot.exists()) {
+                        Log.d("DbQuery", "Found existing test result: " + documentSnapshot.getData());
+                        // You can return the data here if needed
+                    }
+                    completeListener.onSuccess();
+                }
+            })
+            .addOnFailureListener(new OnFailureListener() {
+                @Override
+                public void onFailure(@NonNull Exception e) {
+                    Log.e("DbQuery", "Failed to get test result: " + e.getMessage());
+                    completeListener.onFailure();
+                }
+            });
+    }
+
+    // Clear previous test result for re-attempt
+    public static void clearTestResult(String categoryId, String testId, final MyCompleteListener completeListener) {
+        if (FirebaseAuth.getInstance().getCurrentUser() == null) {
+            completeListener.onFailure();
+            return;
+        }
+
+        String userId = FirebaseAuth.getInstance().getCurrentUser().getUid();
+        DocumentReference testResultDoc = g_firestore.collection("USERS")
+            .document(userId)
+            .collection("TEST_RESULTS")
+            .document(categoryId + "_" + testId);
+
+        testResultDoc.delete()
+            .addOnSuccessListener(new OnSuccessListener<Void>() {
+                @Override
+                public void onSuccess(Void aVoid) {
+                    Log.d("DbQuery", "Previous test result cleared for re-attempt");
+                    completeListener.onSuccess();
+                }
+            })
+            .addOnFailureListener(new OnFailureListener() {
+                @Override
+                public void onFailure(@NonNull Exception e) {
+                    Log.e("DbQuery", "Failed to clear test result: " + e.getMessage());
+                    completeListener.onFailure();
+                }
+            });
+    }
+
+    // Load leaderboard data from database
+    public static void loadLeaderboardData(final MyCompleteListener completeListener) {
+        g_rankList.clear();
+        
+        // First, get all users with their scores
+        g_firestore.collection("USERS").get()
+            .addOnSuccessListener(new OnSuccessListener<QuerySnapshot>() {
+                @Override
+                public void onSuccess(QuerySnapshot queryDocumentSnapshots) {
+                    for (QueryDocumentSnapshot document : queryDocumentSnapshots) {
+                        String userId = document.getId();
+                        
+                        // Skip the TOTAL_USERS document
+                        if ("TOTAL_USERS".equals(userId)) {
+                            continue;
+                        }
+                        
+                        String name = document.getString("NAME");
+                        String email = document.getString("EMAIL_ID");
+                        Long totalScore = document.getLong("TOTAL_SCORE");
+                        
+                        if (name != null && email != null && totalScore != null) {
+                            RankModel rankModel = new RankModel(
+                                userId,
+                                name,
+                                email,
+                                totalScore.intValue(),
+                                0, // Rank will be calculated later
+                                System.currentTimeMillis()
+                            );
+                            g_rankList.add(rankModel);
+                        }
+                    }
+                    
+                    // Sort by score (highest first) and assign ranks
+                    Collections.sort(g_rankList, (r1, r2) -> 
+                        Integer.compare(r2.getTotalScore(), r1.getTotalScore()));
+                    
+                    for (int i = 0; i < g_rankList.size(); i++) {
+                        g_rankList.get(i).setRank(i + 1);
+                    }
+                    
+                    Log.d("DbQuery", "Loaded " + g_rankList.size() + " users for leaderboard");
+                    completeListener.onSuccess();
+                }
+            })
+            .addOnFailureListener(new OnFailureListener() {
+                @Override
+                public void onFailure(@NonNull Exception e) {
+                    Log.e("DbQuery", "Failed to load leaderboard data: " + e.getMessage());
+                    completeListener.onFailure();
+                }
+            });
+    }
+
+    // Get user's current rank
+    public static int getUserRank(String userId) {
+        for (RankModel rank : g_rankList) {
+            if (rank.getUserId().equals(userId)) {
+                return rank.getRank();
+            }
+        }
+        return -1; // User not found
+    }
+
+    // Get user's current score
+    public static int getUserScore(String userId) {
+        for (RankModel rank : g_rankList) {
+            if (rank.getUserId().equals(userId)) {
+                return rank.getTotalScore();
+            }
+        }
+        return 0; // User not found
     }
 }
 

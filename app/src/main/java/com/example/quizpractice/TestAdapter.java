@@ -2,16 +2,21 @@ package com.example.quizpractice;
 
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.Color;
+import android.graphics.PorterDuff;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
+import androidx.cardview.widget.CardView;
 import androidx.recyclerview.widget.RecyclerView;
+import com.example.quizpractice.UserProgressManager;
 
 import java.util.List;
 
@@ -44,6 +49,10 @@ public class TestAdapter extends RecyclerView.Adapter<TestAdapter.ViewHolder> {
                 // Set test number
                 holder.testNo.setText("Test " + model.getId());
                 
+                // Set difficulty level
+                holder.difficultyText.setText(model.getDifficultyText());
+                holder.difficultyText.setTextColor(model.getDifficultyColor());
+                
                 // Set score with proper formatting
                 String score = model.getTopScore();
                 int scoreValue = 0;
@@ -61,32 +70,77 @@ public class TestAdapter extends RecyclerView.Adapter<TestAdapter.ViewHolder> {
                 // Set time
                 holder.timeText.setText(model.getTime() + " min");
 
+                // Handle locked/unlocked state
+                if (model.isUnlocked()) {
+                    // Test is unlocked - show normal state
+                    holder.itemView.setEnabled(true);
+                    holder.itemView.setAlpha(1.0f);
+                    holder.lockIcon.setVisibility(View.GONE);
+                    holder.unlockText.setVisibility(View.GONE);
+                    
+                    // Show normal colors
+                    holder.cardView.setCardBackgroundColor(Color.WHITE);
+                    holder.testNo.setTextColor(Color.BLACK);
+                    holder.topScore.setTextColor(Color.BLACK);
+                    holder.timeText.setTextColor(Color.BLACK);
+                    
+                    // Add click animation and listener
+                    holder.itemView.setOnClickListener(v -> {
+                        v.animate()
+                            .scaleX(0.95f)
+                            .scaleY(0.95f)
+                            .setDuration(100)
+                            .withEndAction(() -> {
+                                v.animate()
+                                    .scaleX(1f)
+                                    .scaleY(1f)
+                                    .setDuration(100)
+                                    .start();
+                                // Navigate to Start Test page, then Questions
+                                DbQuery.g_selected_test_index = position;
+                                Intent intent = new Intent(context, test_startActivity.class);
+                                context.startActivity(intent);
+                            })
+                            .start();
+                    });
+                } else {
+                    // Test is locked - show locked state
+                    holder.itemView.setEnabled(false);
+                    holder.itemView.setAlpha(0.6f);
+                    holder.lockIcon.setVisibility(View.VISIBLE);
+                    holder.unlockText.setVisibility(View.VISIBLE);
+                    
+                    // Show locked colors
+                    holder.cardView.setCardBackgroundColor(Color.LTGRAY);
+                    holder.testNo.setTextColor(Color.GRAY);
+                    holder.topScore.setTextColor(Color.GRAY);
+                    holder.timeText.setTextColor(Color.GRAY);
+                    
+                    // Set unlock requirement text
+                    String unlockText = "";
+                    if (model.getId().equals("B") || model.getDifficulty().equals("MEDIUM")) {
+                        unlockText = "Complete TestA with 75% score to unlock";
+                    } else if (model.getId().equals("C") || model.getDifficulty().equals("HARD")) {
+                        unlockText = "Complete TestA with 75% score to unlock";
+                    } else if (model.getDifficulty().equals("MEDIUM")) {
+                        unlockText = "Complete 70% of category to unlock";
+                    } else if (model.getDifficulty().equals("HARD")) {
+                        unlockText = "Complete 85% of category to unlock";
+                    }
+                    holder.unlockText.setText(unlockText);
+                    
+                    // Remove click listener for locked tests
+                    holder.itemView.setOnClickListener(null);
+                }
+
                 // Make all views visible
                 holder.testNo.setVisibility(View.VISIBLE);
                 holder.topScore.setVisibility(View.VISIBLE);
                 holder.progressBar.setVisibility(View.VISIBLE);
                 holder.timeText.setVisibility(View.VISIBLE);
+                holder.difficultyText.setVisibility(View.VISIBLE);
                 holder.itemView.setVisibility(View.VISIBLE);
 
-                // Add click animation and listener
-                holder.itemView.setOnClickListener(v -> {
-                    v.animate()
-                        .scaleX(0.95f)
-                        .scaleY(0.95f)
-                        .setDuration(100)
-                        .withEndAction(() -> {
-                            v.animate()
-                                .scaleX(1f)
-                                .scaleY(1f)
-                                .setDuration(100)
-                                .start();
-                            // Navigate to Start Test page, then Questions
-                            DbQuery.g_selected_test_index = position;
-                            Intent intent = new Intent(context, test_startActivity.class);
-                            context.startActivity(intent);
-                        })
-                        .start();
-                });
             } else {
                 Log.e(TAG, "Invalid position or null list: position=" + position + ", list size=" + (testList != null ? testList.size() : 0));
             }
@@ -107,7 +161,11 @@ public class TestAdapter extends RecyclerView.Adapter<TestAdapter.ViewHolder> {
         TextView testNo;
         TextView topScore;
         TextView timeText;
+        TextView difficultyText;
+        TextView unlockText;
         ProgressBar progressBar;
+        ImageView lockIcon;
+        CardView cardView;
 
         public ViewHolder(@NonNull View itemView) {
             super(itemView);
@@ -115,12 +173,19 @@ public class TestAdapter extends RecyclerView.Adapter<TestAdapter.ViewHolder> {
             topScore = itemView.findViewById(R.id.Scoretext);
             timeText = itemView.findViewById(R.id.timeText);
             progressBar = itemView.findViewById(R.id.testprogressBar);
-
+            difficultyText = itemView.findViewById(R.id.difficultyText);
+            unlockText = itemView.findViewById(R.id.unlockText);
+            lockIcon = itemView.findViewById(R.id.lockIcon);
+            cardView = itemView.findViewById(R.id.testCard);
 
             if (testNo == null) Log.e("ViewHolder", "testNo TextView not found");
             if (topScore == null) Log.e("ViewHolder", "topScore TextView not found");
             if (timeText == null) Log.e("ViewHolder", "timeText TextView not found");
             if (progressBar == null) Log.e("ViewHolder", "progressBar not found");
+            if (difficultyText == null) Log.e("ViewHolder", "difficultyText TextView not found");
+            if (unlockText == null) Log.e("ViewHolder", "unlockText TextView not found");
+            if (lockIcon == null) Log.e("ViewHolder", "lockIcon ImageView not found");
+            if (cardView == null) Log.e("ViewHolder", "testCard CardView not found");
         }
 
         public void setData(int pos, int progress) {

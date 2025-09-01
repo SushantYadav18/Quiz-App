@@ -43,8 +43,11 @@ public class SplashActivity extends AppCompatActivity {
         FirebaseAuth mAuth = FirebaseAuth.getInstance();
         DbQuery.g_firestore = FirebaseFirestore.getInstance();
         
-        if (mAuth.getCurrentUser() != null) {
-
+        // Check session validity using SessionManager
+        SessionManager sessionManager = SessionManager.getInstance(this);
+        
+        if (mAuth.getCurrentUser() != null && sessionManager.isLoggedIn()) {
+            // User is authenticated and has valid session
             DbQuery.loadData(new MyCompleteListener() {
                 @Override
                 public void onSuccess() {
@@ -56,22 +59,17 @@ public class SplashActivity extends AppCompatActivity {
 
                 @Override
                 public void onFailure() {
-                      Toast.makeText(SplashActivity.this, "Failed to load categories", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(SplashActivity.this, "Failed to load categories", Toast.LENGTH_SHORT).show();
+                    // Redirect to login on failure
+                    startActivity(new Intent(SplashActivity.this, LoginActivity.class));
+                    finish();
                 }
             });
-
-        }
-        else {
+        } else {
+            // No valid session, redirect to login
             Intent intent = new Intent(SplashActivity.this, LoginActivity.class);
             startActivity(intent);
             finish();
         }
-        
-
-        new Handler().postDelayed(() -> {
-            Intent intent = new Intent(SplashActivity.this, LoginActivity.class);
-            startActivity(intent);
-            finish();
-        }, SPLASH_DELAY);
     }
 }

@@ -13,4 +13,7 @@
     <string name="menu_Profile">Profile</string>
     <!-- TODO: Remove or change this placeholder text -->
     <string name="hello_blank_fragment">Hello blank fragment</string>
+    
+    <!-- Google Sign-In Configuration -->
+    <string name="default_web_client_id">769922210343-gdna58saac5ud094eurokureetr9tjp2.apps.googleusercontent.com</string>
 </resources>

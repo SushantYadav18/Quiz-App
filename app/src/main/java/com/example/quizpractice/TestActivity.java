@@ -14,6 +14,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+import com.example.quizpractice.UserProgressManager;
 
 public class TestActivity extends AppCompatActivity {
     private static final String TAG = "TestActivity";
@@ -96,6 +97,11 @@ public class TestActivity extends AppCompatActivity {
                     
                     runOnUiThread(() -> {
                         try {
+                            // Update test unlock status based on user progress
+                            String categoryId = DbQuery.g_catList.get(DbQuery.g_selected_cat_index).getDocID();
+                            UserProgressManager progressManager = UserProgressManager.getInstance(TestActivity.this);
+                            progressManager.updateTestUnlockStatus(categoryId, DbQuery.g_testList);
+                            
                             // Initialize adapter with loaded data
                             adapter = new TestAdapter(DbQuery.g_testList, TestActivity.this);
                             testRecycler.setAdapter(adapter);
@@ -103,8 +109,8 @@ public class TestActivity extends AppCompatActivity {
                             // Log test details for debugging
                             for (int i = 0; i < DbQuery.g_testList.size(); i++) {
                                 TestModel test = DbQuery.g_testList.get(i);
-                                Log.d(TAG, String.format("Test %d: ID=%s, Time=%d", 
-                                    i + 1, test.getId(), test.getTime()));
+                                Log.d(TAG, String.format("Test %d: ID=%s, Time=%d, Difficulty=%s, Unlocked=%s", 
+                                    i + 1, test.getId(), test.getTime(), test.getDifficulty(), test.isUnlocked()));
                             }
                             
                             // Dismiss loading dialog

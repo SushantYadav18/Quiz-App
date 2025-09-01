@@ -271,4 +271,20 @@ public class QuestionAdapter extends RecyclerView.Adapter<QuestionAdapter.ViewHo
         }
         return count;
     }
+
+    // Get selected answer for a specific question
+    public int getSelectedAnswer(int questionIndex) {
+        if (questionIndex >= 0 && questionIndex < selectedAnswers.size()) {
+            return selectedAnswers.get(questionIndex);
+        }
+        return -1;
+    }
+
+    // Clear all selections (for re-attempt)
+    public void clearAllSelections() {
+        for (int i = 0; i < selectedAnswers.size(); i++) {
+            selectedAnswers.set(i, -1);
+        }
+        notifyDataSetChanged();
+    }
 }

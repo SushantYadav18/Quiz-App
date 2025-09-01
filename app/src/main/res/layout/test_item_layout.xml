@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+<com.google.android.material.card.MaterialCardView 
+    android:id="@+id/testCard"
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -17,17 +19,47 @@
         android:orientation="vertical"
         android:padding="16dp">
 
-        <TextView
-            android:id="@+id/testNum"
+        <!-- Header with Test Number and Difficulty -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Test 1"
-            android:textSize="18sp"
-            android:textStyle="bold"
-            android:textColor="@color/black"
-            android:textAlignment="center"
-            android:fontFamily="sans-serif-medium" />
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
 
+            <TextView
+                android:id="@+id/testNum"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Test 1"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:textColor="@color/black"
+                android:textAlignment="textStart"
+                android:fontFamily="sans-serif-medium" />
+
+            <TextView
+                android:id="@+id/difficultyText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="EASY"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:paddingHorizontal="8dp"
+                android:paddingVertical="4dp"
+                android:background="@drawable/difficulty_badge_background"
+                android:textColor="@color/white" />
+
+            <ImageView
+                android:id="@+id/lockIcon"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@drawable/ic_lock"
+                android:visibility="gone"
+                android:layout_marginStart="8dp" />
+        </LinearLayout>
+
+        <!-- Progress Bar -->
         <ProgressBar
             android:id="@+id/testprogressBar"
             style="?android:attr/progressBarStyleHorizontal"
@@ -38,6 +70,7 @@
             android:progressTint="@color/primary"
             android:progressBackgroundTint="#E0E0E0" />
 
+        <!-- Score and Time Row -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -64,5 +97,19 @@
                 android:textSize="16sp"
                 android:textAlignment="center"/>
         </LinearLayout>
+
+        <!-- Unlock Requirement Text -->
+        <TextView
+            android:id="@+id/unlockText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Complete 70% of category to unlock"
+            android:textSize="12sp"
+            android:textColor="@color/gray"
+            android:textAlignment="center"
+            android:layout_marginTop="8dp"
+            android:visibility="gone"
+            android:fontStyle="italic" />
+
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>
