@@ -440,21 +440,49 @@ public class QuestionsActivity extends AppCompatActivity {
         // Calculate time taken
         timeTaken = System.currentTimeMillis() - startTime;
         
-        // Calculate score and show results
+        // Calculate score and detailed results
         if (questionAdapter != null) {
             int score = questionAdapter.calculateScore();
             int totalQuestions = DbQuery.g_questionList.size();
             int percentage = (score * 100) / totalQuestions;
 
+            // Get detailed answer data
+            List<Integer> selectedAnswers = questionAdapter.getSelectedAnswers();
+            
+            // Calculate correct, wrong, and unattempted counts
+            int correctCount = 0;
+            int wrongCount = 0;
+            int unattemptedCount = 0;
+            
+            for (int i = 0; i < DbQuery.g_questionList.size(); i++) {
+                int selectedAnswer = selectedAnswers.get(i); // 0-3 from UI
+                int correctAnswer = DbQuery.g_questionList.get(i).getCorrectAnswer(); // 1-4 from database
+                
+                // Convert database index (1-4) to UI index (0-3) for comparison
+                int correctAnswerUI = correctAnswer - 1;
+                
+                if (selectedAnswer == -1) {
+                    unattemptedCount++;
+                } else if (selectedAnswer == correctAnswerUI) {
+                    correctCount++;
+                } else {
+                    wrongCount++;
+                }
+            }
+
             Toast.makeText(this,
                 String.format("Quiz completed! Score: %d/%d (%d%%)", score, totalQuestions, percentage),
                 Toast.LENGTH_LONG).show();
 
-            // Navigate to ResultActivity
+            // Navigate to ResultActivity with detailed data
             Intent intent = new Intent(this, ResultActivity.class);
             intent.putExtra("SCORE", score);
             intent.putExtra("TOTAL_QUESTIONS", totalQuestions);
             intent.putExtra("TIME_TAKEN", timeTaken);
+            intent.putExtra("CORRECT_COUNT", correctCount);
+            intent.putExtra("WRONG_COUNT", wrongCount);
+            intent.putExtra("UNATTEMPTED_COUNT", unattemptedCount);
+            intent.putIntegerArrayListExtra("SELECTED_ANSWERS", new ArrayList<>(selectedAnswers));
             intent.putExtra("CATEGORY_ID", DbQuery.g_catList.get(DbQuery.g_selected_cat_index).getDocID());
             intent.putExtra("TEST_ID", g_testList.get(DbQuery.g_selected_test_index).getId());
             

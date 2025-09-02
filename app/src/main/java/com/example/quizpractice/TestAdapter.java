@@ -19,6 +19,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.example.quizpractice.UserProgressManager;
 
 import java.util.List;
+import java.util.Map;
 
 public class TestAdapter extends RecyclerView.Adapter<TestAdapter.ViewHolder> {
     private static final String TAG = "TestAdapter";
@@ -46,6 +47,17 @@ public class TestAdapter extends RecyclerView.Adapter<TestAdapter.ViewHolder> {
                 TestModel model = testList.get(position);
                 Log.d(TAG, "Binding item at position " + position + ": " + model.getId());
                 
+                // Get progress data from UserProgressManager
+                UserProgressManager progressManager = UserProgressManager.getInstance(context);
+                String categoryId = DbQuery.g_catList.get(DbQuery.g_selected_cat_index).getDocID();
+                Map<String, Object> progressData = progressManager.getTestProgressData(categoryId, model.getId());
+                
+                int bestScore = (Integer) progressData.get("best_score");
+                int attemptCount = (Integer) progressData.get("attempt_count");
+                boolean isCompleted = (Boolean) progressData.get("is_completed");
+                
+                Log.d(TAG, "Progress data for Test " + model.getId() + ": Best Score = " + bestScore + "%, Attempts = " + attemptCount);
+                
                 // Set test number
                 holder.testNo.setText("Test " + model.getId());
                 
@@ -53,19 +65,24 @@ public class TestAdapter extends RecyclerView.Adapter<TestAdapter.ViewHolder> {
                 holder.difficultyText.setText(model.getDifficultyText());
                 holder.difficultyText.setTextColor(model.getDifficultyColor());
                 
-                // Set score with proper formatting
-                String score = model.getTopScore();
-                int scoreValue = 0;
-                try {
-                    scoreValue = Integer.parseInt(score);
-                } catch (NumberFormatException e) {
-                    Log.e(TAG, "Invalid score format: " + score);
-                }
-                holder.topScore.setText(scoreValue + "%");
+                // Set best score with proper formatting
+                holder.topScore.setText(bestScore + "%");
                 
-                // Set progress bar
+                // Set progress bar based on best score
                 holder.progressBar.setMax(100);
-                holder.progressBar.setProgress(scoreValue);
+                holder.progressBar.setProgress(bestScore);
+
+                // Color progress bar based on completion
+                if (bestScore >= 70) {
+                    holder.progressBar.getProgressDrawable().setColorFilter(
+                        context.getResources().getColor(R.color.success), PorterDuff.Mode.SRC_IN);
+                } else if (bestScore >= 50) {
+                    holder.progressBar.getProgressDrawable().setColorFilter(
+                        context.getResources().getColor(R.color.accent_yellow), PorterDuff.Mode.SRC_IN);
+                } else {
+                    holder.progressBar.getProgressDrawable().setColorFilter(
+                        context.getResources().getColor(R.color.error), PorterDuff.Mode.SRC_IN);
+                }
 
                 // Set time
                 holder.timeText.setText(model.getTime() + " min");

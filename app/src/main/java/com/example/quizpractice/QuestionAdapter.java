@@ -239,15 +239,52 @@ public class QuestionAdapter extends RecyclerView.Adapter<QuestionAdapter.ViewHo
 
     public int calculateScore() {
         int score = 0;
+        Log.d("QuestionAdapter", "=== CALCULATING SCORE ===");
+        Log.d("QuestionAdapter", "Total questions: " + questionsList.size());
+        
         for (int i = 0; i < questionsList.size(); i++) {
-            int selectedAnswer = selectedAnswers.get(i);
-            int correctAnswer = questionsList.get(i).getCorrectAnswer();
+            int selectedAnswer = selectedAnswers.get(i); // 0-3 from UI
+            int correctAnswer = questionsList.get(i).getCorrectAnswer(); // 1-4 from database
             
-            if (selectedAnswer == correctAnswer) {
+            Log.d("QuestionAdapter", "Question " + (i + 1) + ":");
+            Log.d("QuestionAdapter", "  - Selected: " + selectedAnswer + " (Option " + getOptionLetter(selectedAnswer) + ")");
+            Log.d("QuestionAdapter", "  - Correct DB: " + correctAnswer + " (Option " + getOptionLetterFromDB(correctAnswer) + ")");
+            Log.d("QuestionAdapter", "  - Question: " + questionsList.get(i).getQuestion());
+            
+            // Convert database index (1-4) to UI index (0-3) for comparison
+            int correctAnswerUI = correctAnswer - 1;
+            
+            if (selectedAnswer == correctAnswerUI) {
                 score++;
+                Log.d("QuestionAdapter", "  - Match: YES (+1 point)");
+            } else {
+                Log.d("QuestionAdapter", "  - Match: NO (0 points)");
             }
         }
+        
+        Log.d("QuestionAdapter", "Final score: " + score + "/" + questionsList.size());
+        Log.d("QuestionAdapter", "========================");
         return score;
+    }
+    
+    private String getOptionLetter(int index) {
+        switch (index) {
+            case 0: return "A";
+            case 1: return "B";
+            case 2: return "C";
+            case 3: return "D";
+            default: return "NONE";
+        }
+    }
+    
+    private String getOptionLetterFromDB(int dbIndex) {
+        switch (dbIndex) {
+            case 1: return "A";
+            case 2: return "B";
+            case 3: return "C";
+            case 4: return "D";
+            default: return "INVALID";
+        }
     }
 
     public List<Integer> getSelectedAnswers() {

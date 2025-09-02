@@ -214,6 +214,17 @@ public class MainActivity extends AppCompatActivity {
             // Set default fragment
             setFragment(new CategoryFragment());
             updateToolbarTitle("Quiz Categories");
+            
+            // Check if we should open leaderboard directly
+            Intent intent = getIntent();
+            if (intent != null && intent.getBooleanExtra("OPEN_LEADERBOARD", false)) {
+                // Navigate directly to leaderboard
+                setFragment(new LeaderBoardFragment());
+                updateToolbarTitle("Leaderboard");
+                // Update bottom navigation to show leaderboard as selected
+                bottomNavigationView.setSelectedItemId(R.id.nav_leaderboard);
+                Log.d(TAG, "Opened leaderboard directly from ResultActivity");
+            }
 
         } catch (Exception e) {
             e.printStackTrace();

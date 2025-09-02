@@ -353,6 +353,13 @@ public class DbQuery {
                                 Log.e("DbQuery", "Error parsing question doc: " + doc.getId() + ", err=" + e.getMessage());
                             }
                         }
+                        
+                        // Shuffle questions for random order
+                        if (!g_questionList.isEmpty()) {
+                            Collections.shuffle(g_questionList);
+                            Log.d("DbQuery", "Questions shuffled for random order. Total questions: " + g_questionList.size());
+                        }
+                        
                         completeListener.onSuccess();
                     }
                 })
@@ -783,4 +790,3 @@ public class DbQuery {
         return 0; // User not found
     }
 }
-

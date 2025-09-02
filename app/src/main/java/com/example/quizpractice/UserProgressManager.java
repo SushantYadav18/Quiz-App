@@ -18,6 +18,8 @@ public class UserProgressManager {
     private static final String PREF_NAME = "UserProgressPrefs";
     private static final String KEY_CATEGORY_PROGRESS = "category_progress_";
     private static final String KEY_TEST_COMPLETION = "test_completion_";
+    private static final String KEY_BEST_SCORE = "best_score_";
+    private static final String KEY_ATTEMPT_COUNT = "attempt_count_";
     
     private static UserProgressManager instance;
     private SharedPreferences prefs;
@@ -50,9 +52,25 @@ public class UserProgressManager {
         // Calculate percentage
         int percentage = (score * 100) / maxScore;
         
+        // Get current best score and attempt count
+        String bestScoreKey = KEY_BEST_SCORE + categoryId + "_" + testId;
+        String attemptCountKey = KEY_ATTEMPT_COUNT + categoryId + "_" + testId;
+        
+        int currentBestScore = prefs.getInt(bestScoreKey, 0);
+        int currentAttemptCount = prefs.getInt(attemptCountKey, 0);
+        
+        // Update best score if this attempt is better
+        int newBestScore = Math.max(currentBestScore, percentage);
+        int newAttemptCount = currentAttemptCount + 1;
+        
         // Save to local preferences
-        String key = KEY_TEST_COMPLETION + categoryId + "_" + testId;
-        prefs.edit().putInt(key, percentage).apply();
+        SharedPreferences.Editor editor = prefs.edit();
+        editor.putInt(KEY_TEST_COMPLETION + categoryId + "_" + testId, percentage);
+        editor.putInt(bestScoreKey, newBestScore);
+        editor.putInt(attemptCountKey, newAttemptCount);
+        editor.apply();
+        
+        Log.d(TAG, "Progress saved - Test: " + testId + ", Score: " + percentage + "%, Best: " + newBestScore + "%, Attempts: " + newAttemptCount);
         
         // Save to Firebase
         DocumentReference userDoc = firestore.collection("USERS").document(userId);
@@ -68,13 +86,15 @@ public class UserProgressManager {
         testData.put("SCORE", score);
         testData.put("MAX_SCORE", maxScore);
         testData.put("PERCENTAGE", percentage);
+        testData.put("BEST_SCORE", newBestScore);
+        testData.put("ATTEMPT_COUNT", newAttemptCount);
         testData.put("COMPLETED_AT", System.currentTimeMillis());
         
         progressData.put("TEST_" + testId, testData);
         
         progressDoc.set(progressData, com.google.firebase.firestore.SetOptions.merge())
             .addOnSuccessListener(aVoid -> {
-                Log.d(TAG, "Test completion saved to Firebase: " + testId + " - " + percentage + "%");
+                Log.d(TAG, "Test completion saved to Firebase: " + testId + " - " + percentage + "% (Best: " + newBestScore + "%)");
                 updateCategoryProgress(categoryId);
             })
             .addOnFailureListener(e -> {
@@ -160,34 +180,55 @@ public class UserProgressManager {
      * Check if a test should be unlocked based on user progress
      */
     public boolean shouldUnlockTest(String categoryId, String testId, String difficulty, int requiredScore) {
-        // TestA is always unlocked (EASY difficulty)
-        if (testId.equals("A") || difficulty.equals("EASY")) {
+        Log.d(TAG, "Checking unlock for Test " + testId + " (difficulty: " + difficulty + ")");
+        
+        // EASY tests are always unlocked
+        if (difficulty.equals("EASY")) {
+            Log.d(TAG, "EASY test - always unlocked");
             return true;
         }
         
-        // TestB is unlocked only if TestA is completed with at least 75% success rate
-        if (testId.equals("B") || difficulty.equals("MEDIUM")) {
-            int testACompletion = getTestCompletion(categoryId, "A");
-            return testACompletion >= 75;
+        // Calculate category completion percentage from best scores
+        int totalEasyTests = 0;
+        int totalEasyCompletion = 0;
+        
+        // Get all test IDs from the current category and check EASY difficulty ones
+        // We'll check all possible test IDs to find completed EASY tests
+        String[] possibleTestIds = {"A", "B", "C", "1", "2", "3", "AAAA", "BBBB", "CCCC", "DDDD", "EEEE"};
+        for (String possibleTestId : possibleTestIds) {
+            int bestScore = getBestScore(categoryId, possibleTestId);
+            if (bestScore > 0) {
+                // Check if this test is EASY difficulty by looking at saved data
+                // For now, assume first few tests are EASY
+                totalEasyTests++;
+                totalEasyCompletion += bestScore;
+                Log.d(TAG, "Found completed test " + possibleTestId + ": " + bestScore + "%");
+            }
         }
         
-        // TestC is unlocked only if TestB is unlocked (which requires TestA to be completed with 75%)
-        if (testId.equals("C") || difficulty.equals("HARD")) {
-            int testACompletion = getTestCompletion(categoryId, "A");
-            return testACompletion >= 75; // If TestA is completed with 75%, then TestB and TestC are unlocked
-        }
+        int categoryCompletion = totalEasyTests > 0 ? totalEasyCompletion / totalEasyTests : 0;
+        Log.d(TAG, "Category completion: " + categoryCompletion + "% (from " + totalEasyTests + " easy tests)");
         
-        // Get category completion percentage (fallback for other tests)
-        int categoryCompletion = getCategoryCompletion(categoryId);
+        // Update local category progress
+        prefs.edit().putInt(KEY_CATEGORY_PROGRESS + categoryId, categoryCompletion).apply();
         
-        // Default rules for other tests based on difficulty
+        // MEDIUM tests unlock at 70% category completion
         if (difficulty.equals("MEDIUM")) {
-            return categoryCompletion >= 70;
-        } else if (difficulty.equals("HARD")) {
-            return categoryCompletion >= 85;
+            boolean unlocked = categoryCompletion >= 70;
+            Log.d(TAG, "MEDIUM test unlock check: " + categoryCompletion + "% >= 70% = " + unlocked);
+            return unlocked;
         }
         
-        return false;
+        // HARD tests unlock at 85% category completion
+        if (difficulty.equals("HARD")) {
+            boolean unlocked = categoryCompletion >= 85;
+            Log.d(TAG, "HARD test unlock check: " + categoryCompletion + "% >= 85% = " + unlocked);
+            return unlocked;
+        }
+        
+        // Default fallback
+        Log.d(TAG, "Unknown difficulty - defaulting to unlocked");
+        return true;
     }
     
     /**
@@ -229,5 +270,43 @@ public class UserProgressManager {
     public void resetProgress() {
         prefs.edit().clear().apply();
         Log.d(TAG, "User progress reset");
+    }
+    
+    /**
+     * Get best score for a specific test
+     */
+    public int getBestScore(String categoryId, String testId) {
+        String key = KEY_BEST_SCORE + categoryId + "_" + testId;
+        return prefs.getInt(key, 0);
+    }
+    
+    /**
+     * Get attempt count for a specific test
+     */
+    public int getAttemptCount(String categoryId, String testId) {
+        String key = KEY_ATTEMPT_COUNT + categoryId + "_" + testId;
+        return prefs.getInt(key, 0);
+    }
+    
+    /**
+     * Get comprehensive test progress data for UI display
+     */
+    public Map<String, Object> getTestProgressData(String categoryId, String testId) {
+        Map<String, Object> progressData = new HashMap<>();
+        progressData.put("best_score", getBestScore(categoryId, testId));
+        progressData.put("attempt_count", getAttemptCount(categoryId, testId));
+        progressData.put("is_completed", getBestScore(categoryId, testId) > 0);
+        return progressData;
+    }
+    
+    /**
+     * Get comprehensive category progress data for UI display
+     */
+    public Map<String, Object> getCategoryProgressData(String categoryId) {
+        Map<String, Object> categoryData = new HashMap<>();
+        int overallCompletion = getCategoryCompletion(categoryId);
+        categoryData.put("overall_completion", overallCompletion);
+        categoryData.put("category_id", categoryId);
+        return categoryData;
     }
 }

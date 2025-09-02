@@ -11,6 +11,7 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 
 import java.util.concurrent.TimeUnit;
+import java.util.ArrayList;
 import com.example.quizpractice.UserProgressManager;
 
 public class ResultActivity extends AppCompatActivity {
@@ -78,56 +79,57 @@ public class ResultActivity extends AppCompatActivity {
             score = intent.getIntExtra("SCORE", 0);
             totalQuestions = intent.getIntExtra("TOTAL_QUESTIONS", 0);
             timeTaken = intent.getLongExtra("TIME_TAKEN", 0);
+            correctAnswers = intent.getIntExtra("CORRECT_COUNT", 0);
+            wrongAnswers = intent.getIntExtra("WRONG_COUNT", 0);
+            unattemptedQuestions = intent.getIntExtra("UNATTEMPTED_COUNT", 0);
             categoryId = intent.getStringExtra("CATEGORY_ID");
             testId = intent.getStringExtra("TEST_ID");
             
             Log.d(TAG, "Received data - Score: " + score + ", Total: " + totalQuestions + 
-                ", Time: " + timeTaken + ", Category: " + categoryId + ", Test: " + testId);
+                ", Time: " + timeTaken + ", Correct: " + correctAnswers + 
+                ", Wrong: " + wrongAnswers + ", Unattempted: " + unattemptedQuestions +
+                ", Category: " + categoryId + ", Test: " + testId);
         }
     }
 
     private void calculateResults() {
-        // Get selected answers from QuestionAdapter
-        if (DbQuery.g_questionList != null && !DbQuery.g_questionList.isEmpty()) {
-            correctAnswers = 0;
-            wrongAnswers = 0;
-            unattemptedQuestions = 0;
+        // Results are already calculated and passed from QuestionsActivity
+        // Just verify the data integrity
+        int totalCalculated = correctAnswers + wrongAnswers + unattemptedQuestions;
+        
+        if (totalCalculated != totalQuestions) {
+            Log.w(TAG, "Data integrity issue: calculated total (" + totalCalculated + 
+                ") doesn't match total questions (" + totalQuestions + ")");
+            
+            // Fallback: recalculate if data is inconsistent
+            if (DbQuery.g_questionList != null && !DbQuery.g_questionList.isEmpty()) {
+                ArrayList<Integer> selectedAnswers = getIntent().getIntegerArrayListExtra("SELECTED_ANSWERS");
+                if (selectedAnswers != null && selectedAnswers.size() == DbQuery.g_questionList.size()) {
+                    correctAnswers = 0;
+                    wrongAnswers = 0;
+                    unattemptedQuestions = 0;
 
-            // Calculate based on selected answers
-            for (int i = 0; i < DbQuery.g_questionList.size(); i++) {
-                QuestionModel question = DbQuery.g_questionList.get(i);
-                int selectedAnswer = getSelectedAnswerForQuestion(i);
-                
-                if (selectedAnswer == -1) {
-                    // No answer selected
-                    unattemptedQuestions++;
-                } else if (selectedAnswer == question.getCorrectAnswer()) {
-                    // Correct answer
-                    correctAnswers++;
-                } else {
-                    // Wrong answer
-                    wrongAnswers++;
+                    for (int i = 0; i < DbQuery.g_questionList.size(); i++) {
+                        QuestionModel question = DbQuery.g_questionList.get(i);
+                        int selectedAnswer = selectedAnswers.get(i);
+                        
+                        if (selectedAnswer == -1) {
+                            unattemptedQuestions++;
+                        } else if (selectedAnswer == question.getCorrectAnswer()) {
+                            correctAnswers++;
+                        } else {
+                            wrongAnswers++;
+                        }
+                    }
+                    
+                    Log.d(TAG, "Recalculated - Correct: " + correctAnswers + ", Wrong: " + wrongAnswers + 
+                        ", Unattempted: " + unattemptedQuestions);
                 }
             }
-
-            Log.d(TAG, "Calculated - Correct: " + correctAnswers + ", Wrong: " + wrongAnswers + 
-                ", Unattempted: " + unattemptedQuestions);
         }
-    }
 
-    private int getSelectedAnswerForQuestion(int questionIndex) {
-        // Get the selected answer from QuestionsActivity's QuestionAdapter
-        // We need to access the adapter from QuestionsActivity
-        // For now, we'll calculate based on the score
-        if (score > 0 && totalQuestions > 0) {
-            // Estimate based on score
-            int correctCount = score;
-            int wrongCount = totalQuestions - correctCount - unattemptedQuestions;
-            
-            // This is a simplified calculation - in a real app, you'd get this from the adapter
-            return -1; // Placeholder
-        }
-        return -1;
+        Log.d(TAG, "Final results - Correct: " + correctAnswers + ", Wrong: " + wrongAnswers + 
+            ", Unattempted: " + unattemptedQuestions);
     }
 
     private void displayResults() {
@@ -169,13 +171,29 @@ public class ResultActivity extends AppCompatActivity {
                     String categoryId = getIntent().getStringExtra("CATEGORY_ID");
                     String testId = getIntent().getStringExtra("TEST_ID");
                     
+                    Log.d(TAG, "=== PROGRESS MANAGER DEBUG ===");
+                    Log.d(TAG, "CategoryId from intent: " + categoryId);
+                    Log.d(TAG, "TestId from intent: " + testId);
+                    Log.d(TAG, "Score: " + score);
+                    Log.d(TAG, "Total questions: " + totalQuestions);
+                    
                     if (categoryId != null && testId != null) {
                         UserProgressManager progressManager = UserProgressManager.getInstance(ResultActivity.this);
+                        Log.d(TAG, "Calling saveTestCompletion...");
                         progressManager.saveTestCompletion(categoryId, testId, score, totalQuestions);
                         Log.d(TAG, "Test completion saved to UserProgressManager");
+                        
+                        // Verify the data was saved
+                        int savedBestScore = progressManager.getBestScore(categoryId, testId);
+                        int savedAttemptCount = progressManager.getAttemptCount(categoryId, testId);
+                        Log.d(TAG, "Verification - Best Score: " + savedBestScore + "%, Attempt Count: " + savedAttemptCount);
+                    } else {
+                        Log.e(TAG, "CategoryId or TestId is null - cannot save progress");
                     }
+                    Log.d(TAG, "==============================");
                 } catch (Exception e) {
                     Log.e(TAG, "Error saving to UserProgressManager: " + e.getMessage());
+                    e.printStackTrace();
                 }
                 
                 progressDialog.dismiss();
