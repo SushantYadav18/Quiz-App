@@ -21,6 +21,9 @@ import com.google.android.gms.auth.api.signin.GoogleSignIn;
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
 import com.google.android.gms.auth.api.signin.GoogleSignInClient;
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
+import com.google.android.gms.auth.api.signin.GoogleSignInStatusCodes;
+import com.google.android.gms.common.ConnectionResult;
+import com.google.android.gms.common.GoogleApiAvailability;
 import com.google.android.gms.common.api.ApiException;
 import com.google.android.gms.tasks.Task;
 import com.google.android.material.button.MaterialButton;
@@ -29,14 +32,17 @@ import com.google.android.material.textfield.TextInputLayout;
 import com.google.firebase.auth.AuthCredential;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseAuthException;
+import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException;
+import com.google.firebase.auth.FirebaseAuthInvalidUserException;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.auth.GoogleAuthProvider;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 
 public class LoginActivity extends AppCompatActivity {
+
     private static final String TAG = "LoginActivity";
-    private static final int RC_SIGN_IN = 9001;
+    private static final int RC_SIGN_IN = 9001; // Request code for Google Sign-In
     private ActivityLoginBinding binding;
     private FirebaseAuth mAuth;
     private DatabaseReference mDatabase;
@@ -60,7 +66,15 @@ public class LoginActivity extends AppCompatActivity {
 
         // Initialize Google Sign-In
         Log.d(TAG, "About to setup Google Sign-In");
-        setupGoogleSignIn();
+        // Check Google Play Services availability before setup
+        if (!isGooglePlayServicesAvailable()) {
+            Log.e(TAG, "Google Play Services not available, disabling Google Sign-In");
+            findViewById(R.id.Gsign_in_button).setEnabled(false);
+            findViewById(R.id.Gsign_in_button).setAlpha(0.5f);
+            Toast.makeText(this, "Google Sign-In requires Google Play Services", Toast.LENGTH_LONG).show();
+        } else {
+            setupGoogleSignIn();
+        }
         Log.d(TAG, "Google Sign-In setup completed, client: " + (mGoogleSignInClient != null));
 
         // Initialize views
@@ -72,6 +86,7 @@ public class LoginActivity extends AppCompatActivity {
         MaterialButton loginButton = binding.loginB;
         MaterialButton signupButton = binding.signupB;
         View googleSignInButton = findViewById(R.id.Gsign_in_button);
+        MaterialButton adminLoginButton = binding.adminLoginBtn;
 
         // Log view initialization
         Log.d(TAG, "Google Sign-In button found: " + (googleSignInButton != null));
@@ -92,21 +107,44 @@ public class LoginActivity extends AppCompatActivity {
             Log.d(TAG, "Google Sign-In button clicked");
             googleSignIn();
         });
+        
+        adminLoginButton.setOnClickListener(v -> {
+            Log.d(TAG, "Admin Login button clicked");
+            startActivity(new Intent(LoginActivity.this, AdminLoginActivity.class));
+        });
 
         // Initialize signInLauncher
         signInLauncher = registerForActivityResult(
                 new ActivityResultContracts.StartActivityForResult(),
                 result -> {
-                    Log.d(TAG, "ActivityResultLauncher triggered with result code: " + result.getResultCode());
+                    Log.d(TAG, "Google Sign-In activity result received, result code: " + result.getResultCode());
                     if (result.getResultCode() == RESULT_OK) {
-                        Log.d(TAG, "Result OK, processing Google Sign-In result");
-                        Task<GoogleSignInAccount> task = GoogleSignIn.getSignedInAccountFromIntent(result.getData());
-                        firebaseAuthWithGoogle(task);
-                    } else {
-                        Log.e(TAG, "Google Sign-In result not OK: " + result.getResultCode());
-                        if (result.getData() != null) {
-                            Log.d(TAG, "Result data: " + result.getData().toString());
+                        Log.d(TAG, "Google Sign-In result OK");
+                        if (result.getData() == null) {
+                            Log.e(TAG, "Google Sign-In failed: Intent data is null");
+                            Toast.makeText(this, "Google Sign-In failed: No data received", Toast.LENGTH_SHORT).show();
+                            setLoading(false);
+                            return;
                         }
+                        
+                        try {
+                            Task<GoogleSignInAccount> task = GoogleSignIn.getSignedInAccountFromIntent(result.getData());
+                            firebaseAuthWithGoogle(task);
+                        } catch (Exception e) {
+                            Log.e(TAG, "Error processing Google Sign-In result", e);
+                            Toast.makeText(this, "Google Sign-In processing error: " + e.getMessage(), 
+                                    Toast.LENGTH_SHORT).show();
+                            setLoading(false);
+                        }
+                    } else if (result.getResultCode() == RESULT_CANCELED) {
+                        Log.d(TAG, "Google Sign-In was canceled by user");
+                        Toast.makeText(this, "Sign-in canceled", Toast.LENGTH_SHORT).show();
+                        setLoading(false);
+                    } else {
+                        Log.e(TAG, "Google Sign-In failed: Result code = " + result.getResultCode());
+                        Toast.makeText(this, "Google Sign-In failed with code: " + result.getResultCode(), 
+                                Toast.LENGTH_SHORT).show();
+                        setLoading(false);
                     }
                 }
         );
@@ -117,8 +155,8 @@ public class LoginActivity extends AppCompatActivity {
             String webClientId = getString(R.string.default_web_client_id);
             Log.d(TAG, "Setting up Google Sign-In with web client ID: " + webClientId);
             
-            if (webClientId == null || webClientId.isEmpty()) {
-                Log.e(TAG, "Web client ID is null or empty!");
+            if (webClientId == null || webClientId.isEmpty() || webClientId.equals("default_web_client_id")) {
+                Log.e(TAG, "Web client ID is null, empty, or not properly configured!");
                 Toast.makeText(this, "Google Sign-In configuration error: Missing web client ID", 
                         Toast.LENGTH_LONG).show();
                 return;
@@ -133,6 +171,12 @@ public class LoginActivity extends AppCompatActivity {
             Log.d(TAG, "GoogleSignInOptions built successfully");
             mGoogleSignInClient = GoogleSignIn.getClient(this, gso);
             Log.d(TAG, "Google Sign-In client created successfully: " + (mGoogleSignInClient != null));
+            
+            // Check for existing Google Sign In account
+            GoogleSignInAccount account = GoogleSignIn.getLastSignedInAccount(this);
+            if (account != null) {
+                Log.d(TAG, "Found existing Google Sign-In account: " + account.getEmail() + ", ID token available: " + (account.getIdToken() != null));
+            }
         } catch (Exception e) {
             Log.e(TAG, "Error setting up Google Sign-In", e);
             Toast.makeText(this, "Failed to setup Google Sign-In: " + e.getMessage(), 
@@ -142,6 +186,7 @@ public class LoginActivity extends AppCompatActivity {
 
     private void googleSignIn() {
         Log.d(TAG, "googleSignIn() method called");
+        setLoading(true);
         
         if (mGoogleSignInClient == null) {
             Log.e(TAG, "GoogleSignInClient is null! Re-initializing...");
@@ -150,8 +195,15 @@ public class LoginActivity extends AppCompatActivity {
                 Log.e(TAG, "Failed to create GoogleSignInClient after retry");
                 Toast.makeText(this, "Google Sign-In not available. Please check your configuration.", 
                         Toast.LENGTH_LONG).show();
+                setLoading(false);
                 return;
             }
+        }
+        
+        // Check Google Play Services availability
+        if (!isGooglePlayServicesAvailable()) {
+            setLoading(false);
+            return;
         }
         
         try {
@@ -164,7 +216,35 @@ public class LoginActivity extends AppCompatActivity {
             Log.e(TAG, "Error launching Google Sign-In", e);
             Toast.makeText(this, "Google Sign-In not available: " + e.getMessage(), 
                     Toast.LENGTH_LONG).show();
+            setLoading(false);
         }
+    }
+    
+    /**
+     * Checks if Google Play Services is available and up to date
+     * @return true if Google Play Services is available and up to date
+     */
+    private boolean isGooglePlayServicesAvailable() {
+        GoogleApiAvailability googleApiAvailability = GoogleApiAvailability.getInstance();
+        int resultCode = googleApiAvailability.isGooglePlayServicesAvailable(this);
+        if (resultCode != ConnectionResult.SUCCESS) {
+            Log.e(TAG, "Google Play Services is not available: " + resultCode);
+            if (googleApiAvailability.isUserResolvableError(resultCode)) {
+                googleApiAvailability.getErrorDialog(this, resultCode, RC_SIGN_IN,
+                        dialog -> {
+                            Log.d(TAG, "Google Play Services error dialog dismissed");
+                            setLoading(false);
+                        }).show();
+            } else {
+                Log.e(TAG, "This device does not support Google Play Services: " + resultCode);
+                Toast.makeText(this, "This device does not support Google Play Services", 
+                        Toast.LENGTH_LONG).show();
+                setLoading(false);
+            }
+            return false;
+        }
+        Log.d(TAG, "Google Play Services is available and up to date");
+        return true;
     }
 
     private void firebaseAuthWithGoogle(Task<GoogleSignInAccount> completedTask) {
@@ -173,8 +253,18 @@ public class LoginActivity extends AppCompatActivity {
         try {
             GoogleSignInAccount account = completedTask.getResult(ApiException.class);
             if (account != null) {
-                Log.d(TAG, "Google Sign-In successful, account: " + account.getEmail());
+                Log.d(TAG, "Google Sign-In successful, account: " + account.getEmail() + ", ID token available: " + (account.getIdToken() != null));
+                
+                if (account.getIdToken() == null) {
+                    Log.e(TAG, "ID token is null, cannot authenticate with Firebase");
+                    Toast.makeText(LoginActivity.this, "Authentication failed: ID token is null", Toast.LENGTH_SHORT).show();
+                    setLoading(false);
+                    return;
+                }
+                
                 AuthCredential credential = GoogleAuthProvider.getCredential(account.getIdToken(), null);
+                Log.d(TAG, "Created AuthCredential, attempting Firebase sign-in");
+                
                 mAuth.signInWithCredential(credential)
                         .addOnCompleteListener(this, task -> {
                             setLoading(false);
@@ -182,9 +272,15 @@ public class LoginActivity extends AppCompatActivity {
                                 Log.d(TAG, "Firebase authentication successful");
                                 Toast.makeText(LoginActivity.this, "Google sign-in successful!", Toast.LENGTH_SHORT).show();
                                 FirebaseUser user = mAuth.getCurrentUser();
+                                
+                                if (user == null) {
+                                    Log.e(TAG, "Firebase user is null after successful authentication");
+                                    Toast.makeText(LoginActivity.this, "Authentication error: User is null", Toast.LENGTH_SHORT).show();
+                                    return;
+                                }
 
                                 if(task.getResult().getAdditionalUserInfo().isNewUser()){
-                                    Log.d(TAG, "New user, creating user data");
+                                    Log.d(TAG, "New user, creating user data for: " + user.getEmail());
                                     DbQuery.createUserData(user.getEmail(), user.getDisplayName(), new MyCompleteListener() {
                                         @Override
                                         public void onSuccess() {
@@ -199,12 +295,29 @@ public class LoginActivity extends AppCompatActivity {
                                                 Log.d(TAG, "Google Sign-In session created successfully for new user: " + user.getEmail());
                                             }
                                             
+                                            // Set current user in UserProgressManager
+                                            UserProgressManager.getInstance(LoginActivity.this).setCurrentUser(user.getUid());
+                                            
                                             DbQuery.loadData(new MyCompleteListener() {
                                                 @Override
                                                 public void onSuccess() {
-                                                    Log.d(TAG, "Data loaded successfully, starting MainActivity");
-                                                    startActivity(new Intent(LoginActivity.this, MainActivity.class));
-                                                    finish();
+                                                    Log.d(TAG, "Data loaded successfully");
+                                                    
+                                                    // Load user progress data from Firebase
+                                                    UserProgressManager.getInstance(LoginActivity.this).loadUserProgressFromFirebase(new MyCompleteListener() {
+                                                        @Override
+                                                        public void onSuccess() {
+                                                            Log.d(TAG, "User progress loaded successfully, starting MainActivity");
+                                                            startActivity(new Intent(LoginActivity.this, MainActivity.class));
+                                                            finish();
+                                                        }
+                                                        
+                                                        @Override
+                                                        public void onFailure() {
+                                                            Log.e(TAG, "Failed to load user progress data");
+                                                            Toast.makeText(LoginActivity.this, "Something went Wrong !Please Try Again  Later !!", Toast.LENGTH_SHORT).show();
+                                                        }
+                                                    });
                                                 }
 
                                                 @Override
@@ -231,15 +344,32 @@ public class LoginActivity extends AppCompatActivity {
                                         SessionManager sessionManager = SessionManager.getInstance(LoginActivity.this);
                                         sessionManager.createSession(existingUser.getUid(), existingUser.getEmail(), existingUser.getDisplayName());
                                         
+                                        // Set current user in UserProgressManager
+                                        UserProgressManager.getInstance(LoginActivity.this).setCurrentUser(existingUser.getUid());
+                                        
                                         Log.d(TAG, "Google Sign-In session created successfully for existing user: " + existingUser.getEmail());
                                     }
                                     
                                     DbQuery.loadData(new MyCompleteListener() {
                                         @Override
                                         public void onSuccess() {
-                                            Log.d(TAG, "Data loaded successfully, starting MainActivity");
-                                            startActivity(new Intent(LoginActivity.this, MainActivity.class));
-                                            finish();
+                                            Log.d(TAG, "Data loaded successfully");
+                                            
+                                            // Load user progress data from Firebase
+                                            UserProgressManager.getInstance(LoginActivity.this).loadUserProgressFromFirebase(new MyCompleteListener() {
+                                                @Override
+                                                public void onSuccess() {
+                                                    Log.d(TAG, "User progress loaded successfully, starting MainActivity");
+                                                    startActivity(new Intent(LoginActivity.this, MainActivity.class));
+                                                    finish();
+                                                }
+                                                
+                                                @Override
+                                                public void onFailure() {
+                                                    Log.e(TAG, "Failed to load user progress data");
+                                                    Toast.makeText(LoginActivity.this, "Something went Wrong !Please Try Again  Later !!", Toast.LENGTH_SHORT).show();
+                                                }
+                                            });
                                         }
 
                                         @Override
@@ -251,9 +381,27 @@ public class LoginActivity extends AppCompatActivity {
                                 }
 
                             } else {
-                                Log.e(TAG, "Firebase authentication failed", task.getException());
-                                Toast.makeText(LoginActivity.this, "Authentication failed: " +
-                                        task.getException().getMessage(), Toast.LENGTH_SHORT).show();
+                                Exception exception = task.getException();
+                                Log.e(TAG, "Firebase authentication failed", exception);
+                                
+                                String errorMessage = "Authentication failed";
+                                if (exception != null) {
+                                    String exceptionMessage = exception.getMessage();
+                                    Log.e(TAG, "Exception message: " + exceptionMessage);
+                                    
+                                    // Check for common Firebase Auth errors
+                                    if (exception instanceof FirebaseAuthInvalidCredentialsException) {
+                                        errorMessage = "Invalid credentials";
+                                    } else if (exception instanceof FirebaseAuthInvalidUserException) {
+                                        errorMessage = "Account doesn't exist or has been disabled";
+                                    } else if (exceptionMessage != null && exceptionMessage.contains("network")) {
+                                        errorMessage = "Network error, please check your connection";
+                                    } else if (exceptionMessage != null) {
+                                        errorMessage = exceptionMessage;
+                                    }
+                                }
+                                
+                                Toast.makeText(LoginActivity.this, errorMessage, Toast.LENGTH_SHORT).show();
                             }
                         });
             } else {
@@ -261,10 +409,38 @@ public class LoginActivity extends AppCompatActivity {
                 setLoading(false);
             }
         } catch (ApiException e) {
-            Log.e(TAG, "Google sign in failed with API exception", e);
             setLoading(false);
-            Toast.makeText(this, "Google sign in failed: " + e.getMessage(),
-                    Toast.LENGTH_SHORT).show();
+            int statusCode = e.getStatusCode();
+            String errorMessage;
+            
+            switch (statusCode) {
+                case GoogleSignInStatusCodes.SIGN_IN_CANCELLED:
+                    errorMessage = "Sign-in was cancelled";
+                    break;
+                case GoogleSignInStatusCodes.SIGN_IN_FAILED:
+                    errorMessage = "Sign-in failed";
+                    break;
+                case GoogleSignInStatusCodes.SIGN_IN_CURRENTLY_IN_PROGRESS:
+                    errorMessage = "Sign-in is already in progress";
+                    break;
+                case GoogleSignInStatusCodes.INVALID_ACCOUNT:
+                    errorMessage = "Invalid account";
+                    break;
+                case GoogleSignInStatusCodes.SIGN_IN_REQUIRED:
+                    errorMessage = "Sign-in required";
+                    break;
+                case GoogleSignInStatusCodes.NETWORK_ERROR:
+                    errorMessage = "Network error occurred";
+                    break;
+                case GoogleSignInStatusCodes.INTERNAL_ERROR:
+                    errorMessage = "Internal error occurred";
+                    break;
+                default:
+                    errorMessage = "Error code: " + statusCode;
+            }
+            
+            Log.e(TAG, "Google Sign-In failed: " + errorMessage, e);
+            Toast.makeText(this, "Google Sign-In failed: " + errorMessage, Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -318,14 +494,32 @@ public class LoginActivity extends AppCompatActivity {
                             SessionManager sessionManager = SessionManager.getInstance(this);
                             sessionManager.createSession(user.getUid(), email, user.getDisplayName() != null ? user.getDisplayName() : "User");
                             
+                            // Set current user in UserProgressManager
+                            UserProgressManager.getInstance(LoginActivity.this).setCurrentUser(user.getUid());
+                            
                             Log.d(TAG, "User session created successfully for: " + email);
                         }
                         
                         DbQuery.loadData(new MyCompleteListener() {
                             @Override
                             public void onSuccess() {
-                                startActivity(new Intent(LoginActivity.this, MainActivity.class));
-                                finish();
+                                Log.d(TAG, "Data loaded successfully");
+                                
+                                // Load user progress data from Firebase
+                                UserProgressManager.getInstance(LoginActivity.this).loadUserProgressFromFirebase(new MyCompleteListener() {
+                                    @Override
+                                    public void onSuccess() {
+                                        Log.d(TAG, "User progress loaded successfully, starting MainActivity");
+                                        startActivity(new Intent(LoginActivity.this, MainActivity.class));
+                                        finish();
+                                    }
+                                    
+                                    @Override
+                                    public void onFailure() {
+                                        Log.e(TAG, "Failed to load user progress data");
+                                        Toast.makeText(LoginActivity.this, "Something went Wrong !Please Try Again  Later !!", Toast.LENGTH_SHORT).show();
+                                    }
+                                });
                             }
 
                             @Override

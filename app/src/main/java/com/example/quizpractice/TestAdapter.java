@@ -135,14 +135,54 @@ public class TestAdapter extends RecyclerView.Adapter<TestAdapter.ViewHolder> {
                     
                     // Set unlock requirement text
                     String unlockText = "";
-                    if (model.getId().equals("B") || model.getDifficulty().equals("MEDIUM")) {
-                        unlockText = "Complete TestA with 75% score to unlock";
-                    } else if (model.getId().equals("C") || model.getDifficulty().equals("HARD")) {
-                        unlockText = "Complete TestA with 75% score to unlock";
-                    } else if (model.getDifficulty().equals("MEDIUM")) {
-                        unlockText = "Complete 70% of category to unlock";
+                    String testCategoryId = DbQuery.g_catList.get(DbQuery.g_selected_cat_index).getDocID();
+                    
+                    if (model.getDifficulty().equals("MEDIUM")) {
+                        // Get overall easy tests completion
+                        int easyTestsCount = 0;
+                        int easyTestsCompleted = 0;
+                        int totalEasyScore = 0;
+                        
+                        for (TestModel test : testList) {
+                            if (test.getDifficulty().equals("EASY")) {
+                                easyTestsCount++;
+                                int easyScore = progressManager.getBestScore(testCategoryId, test.getId());
+                                totalEasyScore += easyScore;
+                                
+                                if (easyScore >= 70) {
+                                    easyTestsCompleted++;
+                                }
+                            }
+                        }
+                        
+                        int overallEasyCompletion = (easyTestsCount > 0) ? (totalEasyScore / easyTestsCount) : 0;
+                        
+                        unlockText = String.format("Complete ALL easy tests with at least 70%% score and achieve 70%% overall average to unlock\nCurrent progress: %d/%d tests completed, %d%% overall", 
+                            easyTestsCompleted, easyTestsCount, overallEasyCompletion);
                     } else if (model.getDifficulty().equals("HARD")) {
-                        unlockText = "Complete 85% of category to unlock";
+                        // Get overall medium tests completion
+                        int mediumTestsCount = 0;
+                        int mediumTestsCompleted = 0;
+                        int totalMediumScore = 0;
+                        
+                        for (TestModel test : testList) {
+                            if (test.getDifficulty().equals("MEDIUM")) {
+                                mediumTestsCount++;
+                                int mediumScore = progressManager.getBestScore(testCategoryId, test.getId());
+                                totalMediumScore += mediumScore;
+                                
+                                if (mediumScore >= 70) {
+                                    mediumTestsCompleted++;
+                                }
+                            }
+                        }
+                        
+                        int overallMediumCompletion = (mediumTestsCount > 0) ? (totalMediumScore / mediumTestsCount) : 0;
+                        
+                        unlockText = String.format("Complete ALL medium tests with at least 70%% score and achieve 70%% overall average to unlock\nCurrent progress: %d/%d tests completed, %d%% overall", 
+                            mediumTestsCompleted, mediumTestsCount, overallMediumCompletion);
+                    } else {
+                        unlockText = "Complete previous tests to unlock";
                     }
                     holder.unlockText.setText(unlockText);
                     

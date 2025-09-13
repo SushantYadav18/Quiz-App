@@ -137,6 +137,23 @@ public class SignUpActivity extends AppCompatActivity {
                     if (task.isSuccessful()) {
                         Toast.makeText(SignUpActivity.this, "Registration successful!", Toast.LENGTH_SHORT).show();
 
+                        // Create user session
+                        FirebaseAuth mAuth = FirebaseAuth.getInstance();
+                        if (mAuth.getCurrentUser() != null) {
+                            String userId = mAuth.getCurrentUser().getUid();
+                            String userEmail = mAuth.getCurrentUser().getEmail();
+                            String userName = name.getText().toString().trim();
+                            
+                            // Create session
+                            SessionManager sessionManager = SessionManager.getInstance(SignUpActivity.this);
+                            sessionManager.createSession(userId, userEmail, userName);
+                            
+                            // Set current user in UserProgressManager
+                            UserProgressManager.getInstance(SignUpActivity.this).setCurrentUser(userId);
+                            
+                            Log.d(TAG, "User session created successfully for new user: " + userEmail);
+                        }
+
                         DbQuery.createUserData(emailStr, name.getText().toString().trim() , new MyCompleteListener() {
 
                             @Override
@@ -144,8 +161,23 @@ public class SignUpActivity extends AppCompatActivity {
                                 DbQuery.loadData(new MyCompleteListener() {
                                     @Override
                                     public void onSuccess() {
-                                        startActivity(new Intent(SignUpActivity.this, MainActivity.class));
-                                        finish();
+                                        Log.d(TAG, "Data loaded successfully");
+                                        
+                                        // Load user progress data from Firebase
+                                        UserProgressManager.getInstance(SignUpActivity.this).loadUserProgressFromFirebase(new MyCompleteListener() {
+                                            @Override
+                                            public void onSuccess() {
+                                                Log.d(TAG, "User progress loaded successfully, starting MainActivity");
+                                                startActivity(new Intent(SignUpActivity.this, MainActivity.class));
+                                                finish();
+                                            }
+                                            
+                                            @Override
+                                            public void onFailure() {
+                                                Log.e(TAG, "Failed to load user progress data");
+                                                Toast.makeText(SignUpActivity.this, "Something went Wrong !Please Try Again  Later !!", Toast.LENGTH_SHORT).show();
+                                            }
+                                        });
                                     }
 
                                     @Override

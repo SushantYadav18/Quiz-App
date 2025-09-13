@@ -10,6 +10,7 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.ImageButton;
 import android.widget.ImageView;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -49,10 +50,16 @@ class QuestionItemDecoration extends RecyclerView.ItemDecoration {
 public class QuestionsActivity extends AppCompatActivity {
 
     private RecyclerView questionView;
-    private TextView tvQuesID, timerTV, catNameTV;
+    private TextView tvQuesID, timerTV, catNameTV, questionProgressText;
     private Button submitB, markB, clearSelB;
     private ImageButton prevQuesB, nextQuesB;
     private ImageView quesListB, bookmarkB;
+    private ProgressBar questionProgressBar;
+    
+    // Data structures for tracking question attempts
+    private ArrayList<Long> questionStartTimes;
+    private ArrayList<Long> questionTimeTaken;
+    private ArrayList<Boolean> questionCorrectness;
 
     private QuestionAdapter questionAdapter;
     private int currentQuestionIndex = 0;
@@ -74,10 +81,17 @@ public class QuestionsActivity extends AppCompatActivity {
         if (isRestart) {
             // Clear previous answers for re-attempt
             clearPreviousAnswers();
+            // Note: Questions are already reshuffled in ResultActivity before restarting
+            Log.d("QuestionsActivity", "Restarting quiz with reshuffled questions");
         }
 
         // Record start time
         startTime = System.currentTimeMillis();
+        
+        // Initialize tracking data structures
+        questionStartTimes = new ArrayList<>();
+        questionTimeTaken = new ArrayList<>();
+        questionCorrectness = new ArrayList<>();
 
         init();
         setupQuestionData();
@@ -108,6 +122,7 @@ public class QuestionsActivity extends AppCompatActivity {
         tvQuesID = findViewById(R.id.question_Id);
         timerTV = findViewById(R.id.Tv_timer);
         submitB = findViewById(R.id.submitBtn);
+        questionProgressBar = findViewById(R.id.questionProgressBar);
 
         // Category bar views
         catNameTV = findViewById(R.id.category_name);
@@ -119,6 +134,7 @@ public class QuestionsActivity extends AppCompatActivity {
         clearSelB = findViewById(R.id.clr_sel);
         markB = findViewById(R.id.mark_btn);
         nextQuesB = findViewById(R.id.nextBtn2);
+        questionProgressText = findViewById(R.id.questionProgressText);
     }
 
     private void setupQuestionData() {
@@ -136,6 +152,9 @@ public class QuestionsActivity extends AppCompatActivity {
         currentQuestionIndex = 0;
 
         Log.d("QuestionsActivity", "Setting up " + totalQuestions + " questions");
+        
+        // Initialize tracking arrays for each question
+        initializeQuestionTrackingData();
 
         // Set category name
         if (DbQuery.g_catList != null && !DbQuery.g_catList.isEmpty() &&
@@ -172,9 +191,10 @@ public class QuestionsActivity extends AppCompatActivity {
         // Scroll to first question
         questionView.scrollToPosition(0);
         
-        // Mark first question as visited
+        // Mark first question as visited and start tracking time
         if (questionAdapter != null) {
             questionAdapter.markQuestionAsVisited(0);
+            startQuestionTimer(0);
         }
 
         Log.d("QuestionsActivity", "Questions setup completed successfully");
@@ -277,12 +297,18 @@ public class QuestionsActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 if (currentQuestionIndex > 0) {
+                    // Record time spent on current question before moving
+                    recordQuestionAttempt(currentQuestionIndex);
+                    
+                    // Move to previous question
                     currentQuestionIndex--;
                     questionView.smoothScrollToPosition(currentQuestionIndex);
                     updateQuestionCounter();
-                    // Mark question as visited
+                    
+                    // Mark question as visited and start timing
                     if (questionAdapter != null) {
                         questionAdapter.markQuestionAsVisited(currentQuestionIndex);
+                        startQuestionTimer(currentQuestionIndex);
                     }
                 }
             }
@@ -292,12 +318,18 @@ public class QuestionsActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 if (currentQuestionIndex < totalQuestions - 1) {
+                    // Record time spent on current question before moving
+                    recordQuestionAttempt(currentQuestionIndex);
+                    
+                    // Move to next question
                     currentQuestionIndex++;
                     questionView.smoothScrollToPosition(currentQuestionIndex);
                     updateQuestionCounter();
-                    // Mark question as visited
+                    
+                    // Mark question as visited and start timing
                     if (questionAdapter != null) {
                         questionAdapter.markQuestionAsVisited(currentQuestionIndex);
+                        startQuestionTimer(currentQuestionIndex);
                     }
                 }
             }
@@ -363,11 +395,17 @@ public class QuestionsActivity extends AppCompatActivity {
                     if (layoutManager != null) {
                         int position = layoutManager.findFirstVisibleItemPosition();
                         if (position != RecyclerView.NO_POSITION && position != currentQuestionIndex) {
+                            // Record time spent on previous question
+                            recordQuestionAttempt(currentQuestionIndex);
+                            
+                            // Update current question index
                             currentQuestionIndex = position;
                             updateQuestionCounter();
-                            // Mark question as visited
+                            
+                            // Mark question as visited and start timing
                             if (questionAdapter != null) {
                                 questionAdapter.markQuestionAsVisited(currentQuestionIndex);
+                                startQuestionTimer(currentQuestionIndex);
                             }
                         }
                     }
@@ -412,7 +450,20 @@ public class QuestionsActivity extends AppCompatActivity {
     }
 
     private void updateQuestionCounter() {
+        // Update question counter text (e.g., "1/25")
         tvQuesID.setText(String.format("%d/%d", currentQuestionIndex + 1, totalQuestions));
+        
+        // Update progress text (e.g., "Question 1 of 25")
+        questionProgressText.setText(String.format("Question %d of %d", currentQuestionIndex + 1, totalQuestions));
+        
+        // Calculate and update progress percentage
+        // Progress % = (i/N)×100 where i is current index (0-based + 1) and N is total questions
+        int progressPercentage = ((currentQuestionIndex + 1) * 100) / totalQuestions;
+        questionProgressBar.setProgress(progressPercentage);
+        
+        // Log progress update for debugging
+        Log.d("QuestionsActivity", String.format("Progress updated: %d/%d (%d%%)", 
+                currentQuestionIndex + 1, totalQuestions, progressPercentage));
 
         // Update navigation button states
         prevQuesB.setEnabled(currentQuestionIndex > 0);
@@ -434,6 +485,9 @@ public class QuestionsActivity extends AppCompatActivity {
     }
 
     private void submitQuiz() {
+        // Record time spent on the current question before submitting
+        recordQuestionAttempt(currentQuestionIndex);
+        
         // Cancel timer first
         cancelTimer();
         
@@ -465,14 +519,25 @@ public class QuestionsActivity extends AppCompatActivity {
                     unattemptedCount++;
                 } else if (selectedAnswer == correctAnswerUI) {
                     correctCount++;
+                    // Record correctness for analytics
+                    if (i < questionCorrectness.size()) {
+                        questionCorrectness.set(i, true);
+                    }
                 } else {
                     wrongCount++;
+                    // Record incorrectness for analytics
+                    if (i < questionCorrectness.size()) {
+                        questionCorrectness.set(i, false);
+                    }
                 }
             }
 
             Toast.makeText(this,
                 String.format("Quiz completed! Score: %d/%d (%d%%)", score, totalQuestions, percentage),
                 Toast.LENGTH_LONG).show();
+
+            // Log analytics data
+            logQuestionAnalytics();
 
             // Navigate to ResultActivity with detailed data
             Intent intent = new Intent(this, ResultActivity.class);
@@ -485,6 +550,10 @@ public class QuestionsActivity extends AppCompatActivity {
             intent.putIntegerArrayListExtra("SELECTED_ANSWERS", new ArrayList<>(selectedAnswers));
             intent.putExtra("CATEGORY_ID", DbQuery.g_catList.get(DbQuery.g_selected_cat_index).getDocID());
             intent.putExtra("TEST_ID", g_testList.get(DbQuery.g_selected_test_index).getId());
+            
+            // Add question analytics data for performance tracking
+            intent.putExtra("QUESTION_TIMES", convertLongListToArray(questionTimeTaken));
+            intent.putExtra("QUESTION_CORRECTNESS", convertBooleanListToArray(questionCorrectness));
             
             startActivity(intent);
             finish();
@@ -577,5 +646,104 @@ public class QuestionsActivity extends AppCompatActivity {
             timer.cancel();
             timer = null;
         }
+    }
+    
+    /**
+     * Initialize tracking arrays for each question
+     */
+    private void initializeQuestionTrackingData() {
+        // Clear existing data if any
+        questionStartTimes.clear();
+        questionTimeTaken.clear();
+        questionCorrectness.clear();
+        
+        // Initialize with default values for each question
+        for (int i = 0; i < totalQuestions; i++) {
+            questionStartTimes.add(0L); // No start time yet
+            questionTimeTaken.add(0L);  // No time taken yet
+            questionCorrectness.add(false); // Not answered correctly yet
+        }
+        
+        Log.d("QuestionsActivity", "Initialized tracking data for " + totalQuestions + " questions");
+    }
+    
+    /**
+     * Start timing for a specific question
+     */
+    private void startQuestionTimer(int questionIndex) {
+        if (questionIndex >= 0 && questionIndex < questionStartTimes.size()) {
+            questionStartTimes.set(questionIndex, System.currentTimeMillis());
+            Log.d("QuestionsActivity", "Started timer for question " + (questionIndex + 1));
+        }
+    }
+    
+    /**
+     * Record time spent on a question and other analytics
+     */
+    private void recordQuestionAttempt(int questionIndex) {
+        if (questionIndex >= 0 && questionIndex < questionStartTimes.size()) {
+            // Get start time for this question
+            long startTime = questionStartTimes.get(questionIndex);
+            
+            // If we have a valid start time
+            if (startTime > 0) {
+                // Calculate time spent
+                long endTime = System.currentTimeMillis();
+                long timeSpent = endTime - startTime;
+                
+                // Record time spent
+                questionTimeTaken.set(questionIndex, timeSpent);
+                
+                // Check if answer is correct (if answered)
+                int selectedAnswer = questionAdapter.getSelectedAnswers().get(questionIndex);
+                if (selectedAnswer != -1) { // If question was answered
+                    int correctAnswer = DbQuery.g_questionList.get(questionIndex).getCorrectAnswer() - 1; // Convert to 0-based
+                    boolean isCorrect = (selectedAnswer == correctAnswer);
+                    questionCorrectness.set(questionIndex, isCorrect);
+                }
+                
+                Log.d("QuestionsActivity", String.format("Question %d: Time spent = %d ms, Answered = %s", 
+                        questionIndex + 1, timeSpent, (selectedAnswer != -1 ? "yes" : "no")));
+            }
+        }
+    }
+    
+    /**
+     * Log analytics data for all questions
+     */
+    private void logQuestionAnalytics() {
+        Log.d("QuestionsActivity", "===== Question Analytics =====");
+        
+        for (int i = 0; i < totalQuestions; i++) {
+            long timeSpent = questionTimeTaken.get(i);
+            boolean isCorrect = questionCorrectness.get(i);
+            int selectedAnswer = questionAdapter.getSelectedAnswers().get(i);
+            boolean isAnswered = (selectedAnswer != -1);
+            
+            Log.d("QuestionsActivity", String.format("Q%d: Time=%d ms, Answered=%s, Correct=%s", 
+                    i + 1, timeSpent, isAnswered, isCorrect));
+        }
+    }
+    
+    /**
+     * Convert ArrayList<Long> to long[] for intent extras
+     */
+    private long[] convertLongListToArray(ArrayList<Long> list) {
+        long[] array = new long[list.size()];
+        for (int i = 0; i < list.size(); i++) {
+            array[i] = list.get(i);
+        }
+        return array;
+    }
+    
+    /**
+     * Convert ArrayList<Boolean> to boolean[] for intent extras
+     */
+    private boolean[] convertBooleanListToArray(ArrayList<Boolean> list) {
+        boolean[] array = new boolean[list.size()];
+        for (int i = 0; i < list.size(); i++) {
+            array[i] = list.get(i);
+        }
+        return array;
     }
 }

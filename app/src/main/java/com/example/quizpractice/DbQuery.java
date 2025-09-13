@@ -18,10 +18,12 @@ import com.google.firebase.firestore.WriteBatch;
 import com.google.firebase.firestore.SetOptions;
 
 import java.util.ArrayList;
+import java.util.Random;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Collections;
+import java.util.Random;
 
 public class DbQuery {
 
@@ -30,6 +32,11 @@ public class DbQuery {
     public static List<TestModel> g_testList = new ArrayList<>();
     public static List<QuestionModel> g_questionList = new ArrayList<>();
     public static List<RankModel> g_rankList = new ArrayList<>();
+    
+    // Admin-specific lists
+    public static List<CategoryModel> g_adminCatList = new ArrayList<>();
+    public static List<TestAdminModel> g_adminTestList = new ArrayList<>();
+    public static List<QuestionAdminModel> g_adminQuestionList = new ArrayList<>();
 
     public static int g_selected_cat_index = 0;
     public static int g_selected_test_index = 0;
@@ -354,10 +361,10 @@ public class DbQuery {
                             }
                         }
                         
-                        // Shuffle questions for random order
+                        
+                        // Shuffle questions using Fisher-Yates algorithm
                         if (!g_questionList.isEmpty()) {
-                            Collections.shuffle(g_questionList);
-                            Log.d("DbQuery", "Questions shuffled for random order. Total questions: " + g_questionList.size());
+                            shuffleQuestions();
                         }
                         
                         completeListener.onSuccess();
@@ -414,10 +421,11 @@ public class DbQuery {
                             Log.d("DbQuery", "Loading " + noOfTests + " tests for category: " + categoryDocId);
 
                             for (int i = 1; i <= noOfTests; i++) {
-                                String testIdKey = "TEST" + i + "_ID";
-                                String testTimeKey = "TEST" + i + "_TIME";
-                                String testDifficultyKey = "TEST" + i + "_DIFFICULTY";
-                                String testRequiredScoreKey = "TEST" + i + "_REQUIRED_SCORE";
+                            final int testIndex = i;
+                            String testIdKey = "TEST" + testIndex + "_ID";
+                            String testTimeKey = "TEST" + testIndex + "_TIME";
+                            String testDifficultyKey = "TEST" + testIndex + "_DIFFICULTY";
+                            String testRequiredScoreKey = "TEST" + testIndex + "_REQUIRED_SCORE";
                                 
                                 String testId = documentSnapshot.getString(testIdKey);
                                 Long testTime = documentSnapshot.getLong(testTimeKey);
@@ -685,6 +693,25 @@ public class DbQuery {
             });
     }
 
+    // Shuffle questions using Fisher-Yates algorithm
+    public static void shuffleQuestions() {
+        if (g_questionList == null || g_questionList.isEmpty()) {
+            Log.d("DbQuery", "No questions to shuffle");
+            return;
+        }
+        
+        Random random = new Random();
+        for (int i = g_questionList.size() - 1; i > 0; i--) {
+            int j = random.nextInt(i + 1);
+            // Swap elements at i and j
+            QuestionModel temp = g_questionList.get(i);
+            g_questionList.set(i, g_questionList.get(j));
+            g_questionList.set(j, temp);
+        }
+        
+        Log.d("DbQuery", "Questions reshuffled using Fisher-Yates. Total questions: " + g_questionList.size());
+    }
+    
     // Clear previous test result for re-attempt
     public static void clearTestResult(String categoryId, String testId, final MyCompleteListener completeListener) {
         if (FirebaseAuth.getInstance().getCurrentUser() == null) {
@@ -788,5 +815,887 @@ public class DbQuery {
             }
         }
         return 0; // User not found
+    }
+    
+    // ==================== ADMIN OPERATIONS ====================
+    
+    // Load categories for admin
+    public static void loadCategoriesForAdmin(final MyCompleteListener completeListener) {
+        g_adminCatList.clear();
+        Log.d("DbQuery", "Loading categories for admin...");
+
+        g_firestore.collection("QUIZ").get()
+                .addOnSuccessListener(new OnSuccessListener<QuerySnapshot>() {
+                    @Override
+                    public void onSuccess(QuerySnapshot queryDocumentSnapshots) {
+                        try {
+                            Log.d("DbQuery", "Total documents found in QUIZ collection: " + queryDocumentSnapshots.size());
+
+                            for (QueryDocumentSnapshot doc : queryDocumentSnapshots) {
+                                // Skip the Categories document if it exists
+                                if (doc.getId().equals("Categories")) {
+                                    continue;
+                                }
+
+                                String catName = doc.getString("NAME");
+                                Long noOfTests = null;
+
+                                // Try to get NO_OF_TESTS as a Long first
+                                try {
+                                    noOfTests = doc.getLong("NO_OF_TESTS");
+                                } catch (Exception e) {
+                                    // If that fails, try to get it as a String and parse it
+                                    try {
+                                        String noOfTestsStr = doc.getString("NO_OF_TESTS");
+                                        if (noOfTestsStr != null) {
+                                            noOfTests = Long.parseLong(noOfTestsStr);
+                                        }
+                                    } catch (Exception e2) {
+                                        Log.e("DbQuery", "Could not parse NO_OF_TESTS for document: " + doc.getId());
+                                    }
+                                }
+
+                                if (catName != null && noOfTests != null) {
+                                    g_adminCatList.add(new CategoryModel(doc.getId(), catName, noOfTests.intValue()));
+                                }
+                            }
+
+                            completeListener.onSuccess();
+                        } catch (Exception e) {
+                            Log.e("DbQuery", "Error loading categories for admin: " + e.getMessage());
+                            e.printStackTrace();
+                            completeListener.onFailure();
+                        }
+                    }
+                })
+                .addOnFailureListener(new OnFailureListener() {
+                    @Override
+                    public void onFailure(@NonNull Exception e) {
+                        Log.e("DbQuery", "Failed to load categories for admin: " + e.getMessage());
+                        completeListener.onFailure();
+                    }
+                });
+    }
+    
+    // Add a new category
+    public static void addCategory(String categoryName, final MyCompleteListener completeListener) {
+        // Create a new document with auto-generated ID
+        DocumentReference newCategoryRef = g_firestore.collection("QUIZ").document();
+        
+        Map<String, Object> categoryData = new HashMap<>();
+        categoryData.put("NAME", categoryName);
+        categoryData.put("NO_OF_TESTS", 0);
+        
+        newCategoryRef.set(categoryData)
+            .addOnSuccessListener(new OnSuccessListener<Void>() {
+                @Override
+                public void onSuccess(Void aVoid) {
+                    // Create TESTS_INFO document in TESTS_LIST subcollection
+                    DocumentReference testsInfoRef = newCategoryRef.collection("TESTS_LIST").document("TESTS_INFO");
+                    testsInfoRef.set(new HashMap<>())
+                        .addOnSuccessListener(new OnSuccessListener<Void>() {
+                            @Override
+                            public void onSuccess(Void aVoid) {
+                                Log.d("DbQuery", "Category added successfully: " + categoryName);
+                                completeListener.onSuccess();
+                            }
+                        })
+                        .addOnFailureListener(new OnFailureListener() {
+                            @Override
+                            public void onFailure(@NonNull Exception e) {
+                                Log.e("DbQuery", "Failed to create TESTS_INFO document: " + e.getMessage());
+                                completeListener.onFailure();
+                            }
+                        });
+                }
+            })
+            .addOnFailureListener(new OnFailureListener() {
+                @Override
+                public void onFailure(@NonNull Exception e) {
+                    Log.e("DbQuery", "Failed to add category: " + e.getMessage());
+                    completeListener.onFailure();
+                }
+            });
+    }
+    
+    // Update a category
+    public static void updateCategory(String categoryId, String newCategoryName, final MyCompleteListener completeListener) {
+        DocumentReference categoryRef = g_firestore.collection("QUIZ").document(categoryId);
+        
+        categoryRef.update("NAME", newCategoryName)
+            .addOnSuccessListener(new OnSuccessListener<Void>() {
+                @Override
+                public void onSuccess(Void aVoid) {
+                    Log.d("DbQuery", "Category updated successfully: " + categoryId);
+                    completeListener.onSuccess();
+                }
+            })
+            .addOnFailureListener(new OnFailureListener() {
+                @Override
+                public void onFailure(@NonNull Exception e) {
+                    Log.e("DbQuery", "Failed to update category: " + e.getMessage());
+                    completeListener.onFailure();
+                }
+            });
+    }
+    
+    // Delete a category
+    public static void deleteCategory(String categoryId, final MyCompleteListener completeListener) {
+        // First, get the TESTS_INFO document to find all tests in this category
+        DocumentReference testsInfoRef = g_firestore.collection("QUIZ").document(categoryId)
+                .collection("TESTS_LIST").document("TESTS_INFO");
+        
+        testsInfoRef.get()
+            .addOnSuccessListener(new OnSuccessListener<DocumentSnapshot>() {
+                @Override
+                public void onSuccess(DocumentSnapshot documentSnapshot) {
+                    if (documentSnapshot.exists()) {
+                        // Get all test IDs from this category
+                        Map<String, Object> data = documentSnapshot.getData();
+                        List<String> testIds = new ArrayList<>();
+                        
+                        if (data != null) {
+                            for (String key : data.keySet()) {
+                                if (key.endsWith("_ID")) {
+                                    String testId = (String) data.get(key);
+                                    if (testId != null) {
+                                        testIds.add(testId);
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // Delete all questions for each test in this category
+                        deleteQuestionsForTests(categoryId, testIds, new MyCompleteListener() {
+                            @Override
+                            public void onSuccess() {
+                                // Now delete the category document
+                                g_firestore.collection("QUIZ").document(categoryId).delete()
+                                    .addOnSuccessListener(new OnSuccessListener<Void>() {
+                                        @Override
+                                        public void onSuccess(Void aVoid) {
+                                            Log.d("DbQuery", "Category deleted successfully: " + categoryId);
+                                            completeListener.onSuccess();
+                                        }
+                                    })
+                                    .addOnFailureListener(new OnFailureListener() {
+                                        @Override
+                                        public void onFailure(@NonNull Exception e) {
+                                            Log.e("DbQuery", "Failed to delete category: " + e.getMessage());
+                                            completeListener.onFailure();
+                                        }
+                                    });
+                            }
+                            
+                            @Override
+                            public void onFailure() {
+                                Log.e("DbQuery", "Failed to delete questions for tests in category: " + categoryId);
+                                completeListener.onFailure();
+                            }
+                        });
+                    } else {
+                        // If TESTS_INFO doesn't exist, just delete the category
+                        g_firestore.collection("QUIZ").document(categoryId).delete()
+                            .addOnSuccessListener(new OnSuccessListener<Void>() {
+                                @Override
+                                public void onSuccess(Void aVoid) {
+                                    Log.d("DbQuery", "Category deleted successfully: " + categoryId);
+                                    completeListener.onSuccess();
+                                }
+                            })
+                            .addOnFailureListener(new OnFailureListener() {
+                                @Override
+                                public void onFailure(@NonNull Exception e) {
+                                    Log.e("DbQuery", "Failed to delete category: " + e.getMessage());
+                                    completeListener.onFailure();
+                                }
+                            });
+                    }
+                }
+            })
+            .addOnFailureListener(new OnFailureListener() {
+                @Override
+                public void onFailure(@NonNull Exception e) {
+                    Log.e("DbQuery", "Failed to get TESTS_INFO for category: " + e.getMessage());
+                    completeListener.onFailure();
+                }
+            });
+    }
+    
+    // Helper method to delete questions for multiple tests
+    private static void deleteQuestionsForTests(String categoryId, List<String> testIds, final MyCompleteListener completeListener) {
+        if (testIds == null || testIds.isEmpty()) {
+            completeListener.onSuccess();
+            return;
+        }
+        
+        // Use a batch to delete questions for all tests
+        final WriteBatch batch = g_firestore.batch();
+        final int[] completedQueries = {0};
+        final boolean[] anyFailure = {false};
+        
+        // Helper function to check if all queries are complete
+        final Runnable checkAllQueriesComplete = new Runnable() {
+            @Override
+            public void run() {
+                if (completedQueries[0] >= testIds.size()) {
+                    if (anyFailure[0]) {
+                        completeListener.onFailure();
+                    } else {
+                        // Commit the batch delete
+                        batch.commit()
+                            .addOnSuccessListener(new OnSuccessListener<Void>() {
+                                @Override
+                                public void onSuccess(Void aVoid) {
+                                    Log.d("DbQuery", "Successfully deleted questions for tests");
+                                    completeListener.onSuccess();
+                                }
+                            })
+                            .addOnFailureListener(new OnFailureListener() {
+                                @Override
+                                public void onFailure(@NonNull Exception e) {
+                                    Log.e("DbQuery", "Failed to delete questions in batch: " + e.getMessage());
+                                    completeListener.onFailure();
+                                }
+                            });
+                    }
+                }
+            }
+        };
+        
+        for (String testId : testIds) {
+            // Try different collection names for questions
+            g_firestore.collection("Questions")
+                .whereEqualTo("CATEGORY", categoryId)
+                .whereEqualTo("TEST", testId)
+                .get()
+                .addOnSuccessListener(new OnSuccessListener<QuerySnapshot>() {
+                    @Override
+                    public void onSuccess(QuerySnapshot queryDocumentSnapshots) {
+                        for (DocumentSnapshot doc : queryDocumentSnapshots) {
+                            batch.delete(doc.getReference());
+                        }
+                        
+                        completedQueries[0]++;
+                        checkAllQueriesComplete.run();
+                    }
+                })
+                .addOnFailureListener(new OnFailureListener() {
+                    @Override
+                    public void onFailure(@NonNull Exception e) {
+                        Log.e("DbQuery", "Failed to query questions: " + e.getMessage());
+                        anyFailure[0] = true;
+                        completedQueries[0]++;
+                        checkAllQueriesComplete.run();
+                    }
+                });
+        }
+    }
+    
+    // ==================== TEST ADMIN OPERATIONS ====================
+    
+    // Load tests for admin
+    public static void loadTestsForAdmin(String categoryId, final MyCompleteListener completeListener) {
+        g_adminTestList.clear();
+        
+        // Get the TESTS_INFO document
+        g_firestore.collection("QUIZ").document(categoryId)
+                .collection("TESTS_LIST").document("TESTS_INFO")
+                .get()
+                .addOnSuccessListener(new OnSuccessListener<DocumentSnapshot>() {
+                    @Override
+                    public void onSuccess(DocumentSnapshot documentSnapshot) {
+                        if (!documentSnapshot.exists()) {
+                            completeListener.onSuccess(); // No tests yet
+                            return;
+                        }
+                        
+                        Map<String, Object> data = documentSnapshot.getData();
+                        if (data == null) {
+                            completeListener.onSuccess(); // Empty document
+                            return;
+                        }
+                        
+                        // Parse test data
+                        int noOfTestsTemp = 0;
+                        try {
+                            Long noOfTestsLong = documentSnapshot.getLong("NO_OF_TESTS");
+                            if (noOfTestsLong != null) {
+                                noOfTestsTemp = noOfTestsLong.intValue();
+                            }
+                        } catch (Exception e) {
+                            // If NO_OF_TESTS field doesn't exist, count the test entries
+                            for (String key : data.keySet()) {
+                                if (key.endsWith("_ID")) {
+                                    noOfTestsTemp++;
+                                }
+                            }
+                        }
+                        final int noOfTests = noOfTestsTemp;
+                        
+                        for (int i = 1; i <= noOfTests; i++) {
+                            final int testIndex = i;
+                            String testIdKey = "TEST" + testIndex + "_ID";
+                            String testTimeKey = "TEST" + testIndex + "_TIME";
+                            
+                            String testId = documentSnapshot.getString(testIdKey);
+                            Long testTime = documentSnapshot.getLong(testTimeKey);
+                            
+                            if (testId != null && testTime != null) {
+                                // Get question count for this test
+                                getQuestionCountForTest(categoryId, testId, new MyCompleteListener() {
+                                    @Override
+                                    public void onSuccess() {
+                                        // Question count is stored in g_total_question
+                                        g_adminTestList.add(new TestAdminModel(
+                                            testId,
+                                            "Test " + testIndex, // Default name, will be updated
+                                            testTime.intValue(),
+                                            g_total_question,
+                                            categoryId
+                                        ));
+                                        
+                                        // If this is the last test, notify completion
+                                        if (g_adminTestList.size() == noOfTests) {
+                                            completeListener.onSuccess();
+                                        }
+                                    }
+                                    
+                                    @Override
+                                    public void onFailure() {
+                                        // Add test with 0 questions
+                                        g_adminTestList.add(new TestAdminModel(
+                                            testId,
+                                            "Test " + testIndex, // Default name, will be updated
+                                            testTime.intValue(),
+                                            0,
+                                            categoryId
+                                        ));
+                                        
+                                        // If this is the last test, notify completion
+                                        if (g_adminTestList.size() == noOfTests) {
+                                            completeListener.onSuccess();
+                                        }
+                                    }
+                                });
+                            }
+                        }
+                        
+                        // If no tests were found, notify completion
+                        if (noOfTests == 0) {
+                            completeListener.onSuccess();
+                        }
+                    }
+                })
+                .addOnFailureListener(new OnFailureListener() {
+                    @Override
+                    public void onFailure(@NonNull Exception e) {
+                        Log.e("DbQuery", "Failed to load tests for admin: " + e.getMessage());
+                        completeListener.onFailure();
+                    }
+                });
+    }
+    
+    // Get question count for a test
+    private static void getQuestionCountForTest(String categoryId, String testId, final MyCompleteListener completeListener) {
+        g_total_question = 0;
+        
+        // Try different collection names for questions
+        g_firestore.collection("Questions")
+            .whereEqualTo("CATEGORY", categoryId)
+            .whereEqualTo("TEST", testId)
+            .get()
+            .addOnSuccessListener(new OnSuccessListener<QuerySnapshot>() {
+                @Override
+                public void onSuccess(QuerySnapshot queryDocumentSnapshots) {
+                    g_total_question = queryDocumentSnapshots.size();
+                    completeListener.onSuccess();
+                }
+            })
+            .addOnFailureListener(new OnFailureListener() {
+                @Override
+                public void onFailure(@NonNull Exception e) {
+                    Log.e("DbQuery", "Failed to get question count: " + e.getMessage());
+                    completeListener.onFailure();
+                }
+            });
+    }
+    
+    // Add a new test
+    public static void addTest(String categoryId, String testName, int timeInMinutes, final MyCompleteListener completeListener) {
+        // First, get the current TESTS_INFO document
+        DocumentReference testsInfoRef = g_firestore.collection("QUIZ").document(categoryId)
+                .collection("TESTS_LIST").document("TESTS_INFO");
+        
+        testsInfoRef.get()
+            .addOnSuccessListener(new OnSuccessListener<DocumentSnapshot>() {
+                @Override
+                public void onSuccess(DocumentSnapshot documentSnapshot) {
+                    int noOfTests = 0;
+                    
+                    if (documentSnapshot.exists()) {
+                        Long noOfTestsLong = documentSnapshot.getLong("NO_OF_TESTS");
+                        if (noOfTestsLong != null) {
+                            noOfTests = noOfTestsLong.intValue();
+                        } else {
+                            // Count test entries if NO_OF_TESTS field doesn't exist
+                            Map<String, Object> data = documentSnapshot.getData();
+                            if (data != null) {
+                                for (String key : data.keySet()) {
+                                    if (key.endsWith("_ID")) {
+                                        noOfTests++;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Increment test count
+                    final int updatedNoOfTests = noOfTests + 1;
+                    
+                    // Create a new test ID
+                    String testId = categoryId + "_TEST" + updatedNoOfTests;
+                    
+                    // Update TESTS_INFO document
+                    Map<String, Object> updates = new HashMap<>();
+                    updates.put("NO_OF_TESTS", updatedNoOfTests);
+                    updates.put("TEST" + updatedNoOfTests + "_ID", testId);
+                    updates.put("TEST" + updatedNoOfTests + "_TIME", timeInMinutes);
+                    updates.put("TEST" + updatedNoOfTests + "_NAME", testName);
+                    
+                    testsInfoRef.set(updates, SetOptions.merge())
+                        .addOnSuccessListener(new OnSuccessListener<Void>() {
+                            @Override
+                            public void onSuccess(Void aVoid) {
+                                // Update category document with new test count
+                                g_firestore.collection("QUIZ").document(categoryId)
+                                    .update("NO_OF_TESTS", updatedNoOfTests)
+                                    .addOnSuccessListener(new OnSuccessListener<Void>() {
+                                        @Override
+                                        public void onSuccess(Void aVoid) {
+                                            Log.d("DbQuery", "Test added successfully: " + testId);
+                                            completeListener.onSuccess();
+                                        }
+                                    })
+                                    .addOnFailureListener(new OnFailureListener() {
+                                        @Override
+                                        public void onFailure(@NonNull Exception e) {
+                                            Log.e("DbQuery", "Failed to update category test count: " + e.getMessage());
+                                            completeListener.onFailure();
+                                        }
+                                    });
+                            }
+                        })
+                        .addOnFailureListener(new OnFailureListener() {
+                            @Override
+                            public void onFailure(@NonNull Exception e) {
+                                Log.e("DbQuery", "Failed to add test: " + e.getMessage());
+                                completeListener.onFailure();
+                            }
+                        });
+                }
+            })
+            .addOnFailureListener(new OnFailureListener() {
+                @Override
+                public void onFailure(@NonNull Exception e) {
+                    Log.e("DbQuery", "Failed to get TESTS_INFO: " + e.getMessage());
+                    completeListener.onFailure();
+                }
+            });
+    }
+    
+    // Update an existing test
+    public static void updateTest(String categoryId, String testId, String testName, int timeInMinutes, final MyCompleteListener completeListener) {
+        // Find the test in TESTS_INFO document
+        DocumentReference testsInfoRef = g_firestore.collection("QUIZ").document(categoryId)
+                .collection("TESTS_LIST").document("TESTS_INFO");
+        
+        testsInfoRef.get()
+            .addOnSuccessListener(new OnSuccessListener<DocumentSnapshot>() {
+                @Override
+                public void onSuccess(DocumentSnapshot documentSnapshot) {
+                    if (!documentSnapshot.exists()) {
+                        Log.e("DbQuery", "TESTS_INFO document does not exist");
+                        completeListener.onFailure();
+                        return;
+                    }
+                    
+                    Map<String, Object> data = documentSnapshot.getData();
+                    if (data == null) {
+                        Log.e("DbQuery", "TESTS_INFO document is empty");
+                        completeListener.onFailure();
+                        return;
+                    }
+                    
+                    // Find which test number corresponds to this testId
+                    int testNumber = -1;
+                    for (String key : data.keySet()) {
+                        if (key.endsWith("_ID") && testId.equals(data.get(key))) {
+                            try {
+                                testNumber = Integer.parseInt(key.substring(4, key.length() - 3));
+                                break;
+                            } catch (NumberFormatException e) {
+                                Log.e("DbQuery", "Failed to parse test number from key: " + key);
+                            }
+                        }
+                    }
+                    
+                    if (testNumber == -1) {
+                        Log.e("DbQuery", "Test ID not found in TESTS_INFO: " + testId);
+                        completeListener.onFailure();
+                        return;
+                    }
+                    
+                    // Update test information
+                    Map<String, Object> updates = new HashMap<>();
+                    updates.put("TEST" + testNumber + "_TIME", timeInMinutes);
+                    updates.put("TEST" + testNumber + "_NAME", testName);
+                    
+                    testsInfoRef.update(updates)
+                        .addOnSuccessListener(new OnSuccessListener<Void>() {
+                            @Override
+                            public void onSuccess(Void aVoid) {
+                                Log.d("DbQuery", "Test updated successfully: " + testId);
+                                completeListener.onSuccess();
+                            }
+                        })
+                        .addOnFailureListener(new OnFailureListener() {
+                            @Override
+                            public void onFailure(@NonNull Exception e) {
+                                Log.e("DbQuery", "Failed to update test: " + e.getMessage());
+                                completeListener.onFailure();
+                            }
+                        });
+                }
+            })
+            .addOnFailureListener(new OnFailureListener() {
+                @Override
+                public void onFailure(@NonNull Exception e) {
+                    Log.e("DbQuery", "Failed to get TESTS_INFO: " + e.getMessage());
+                    completeListener.onFailure();
+                }
+            });
+    }
+    
+    // Delete a test
+    public static void deleteTest(String categoryId, String testId, final MyCompleteListener completeListener) {
+        // First delete all questions for this test
+        List<String> testIds = new ArrayList<>();
+        testIds.add(testId);
+        
+        deleteQuestionsForTests(categoryId, testIds, new MyCompleteListener() {
+            @Override
+            public void onSuccess() {
+                // Now find and remove the test from TESTS_INFO
+                DocumentReference testsInfoRef = g_firestore.collection("QUIZ").document(categoryId)
+                        .collection("TESTS_LIST").document("TESTS_INFO");
+                
+                testsInfoRef.get()
+                    .addOnSuccessListener(new OnSuccessListener<DocumentSnapshot>() {
+                        @Override
+                        public void onSuccess(DocumentSnapshot documentSnapshot) {
+                            if (!documentSnapshot.exists()) {
+                                completeListener.onFailure();
+                                return;
+                            }
+                            
+                            Map<String, Object> data = documentSnapshot.getData();
+                            if (data == null) {
+                                completeListener.onFailure();
+                                return;
+                            }
+                            
+                            // Find which test number corresponds to this testId
+                            int testNumber = -1;
+                            for (String key : data.keySet()) {
+                                if (key.endsWith("_ID") && testId.equals(data.get(key))) {
+                                    try {
+                                        testNumber = Integer.parseInt(key.substring(4, key.length() - 3));
+                                        break;
+                                    } catch (NumberFormatException e) {
+                                        Log.e("DbQuery", "Failed to parse test number from key: " + key);
+                                    }
+                                }
+                            }
+                            
+                            if (testNumber == -1) {
+                                completeListener.onFailure();
+                                return;
+                            }
+                            
+                            // Get total number of tests
+                            int noOfTests = 0;
+                            Long noOfTestsLong = documentSnapshot.getLong("NO_OF_TESTS");
+                            if (noOfTestsLong != null) {
+                                noOfTests = noOfTestsLong.intValue();
+                            } else {
+                                // Count test entries
+                                for (String key : data.keySet()) {
+                                    if (key.endsWith("_ID")) {
+                                        noOfTests++;
+                                    }
+                                }
+                            }
+                            
+                            // Create a batch to update all test entries
+                            WriteBatch batch = g_firestore.batch();
+                            
+                            // Remove the test and shift all tests after it
+                            Map<String, Object> updates = new HashMap<>();
+                            updates.put("NO_OF_TESTS", noOfTests - 1);
+                            
+                            // Remove the test fields
+                            updates.put("TEST" + testNumber + "_ID", FieldValue.delete());
+                            updates.put("TEST" + testNumber + "_TIME", FieldValue.delete());
+                            updates.put("TEST" + testNumber + "_NAME", FieldValue.delete());
+                            
+                            // Shift all tests after this one
+                            for (int i = testNumber + 1; i <= noOfTests; i++) {
+                                String oldIdKey = "TEST" + i + "_ID";
+                                String oldTimeKey = "TEST" + i + "_TIME";
+                                String oldNameKey = "TEST" + i + "_NAME";
+                                
+                                String newIdKey = "TEST" + (i - 1) + "_ID";
+                                String newTimeKey = "TEST" + (i - 1) + "_TIME";
+                                String newNameKey = "TEST" + (i - 1) + "_NAME";
+                                
+                                // Copy values from old keys to new keys
+                                if (data.containsKey(oldIdKey)) {
+                                    updates.put(newIdKey, data.get(oldIdKey));
+                                    updates.put(oldIdKey, FieldValue.delete());
+                                }
+                                
+                                if (data.containsKey(oldTimeKey)) {
+                                    updates.put(newTimeKey, data.get(oldTimeKey));
+                                    updates.put(oldTimeKey, FieldValue.delete());
+                                }
+                                
+                                if (data.containsKey(oldNameKey)) {
+                                    updates.put(newNameKey, data.get(oldNameKey));
+                                    updates.put(oldNameKey, FieldValue.delete());
+                                }
+                            }
+                            
+                            // Update TESTS_INFO document
+                            batch.update(testsInfoRef, updates);
+                            
+                            // Update category document with new test count
+                            batch.update(g_firestore.collection("QUIZ").document(categoryId), 
+                                    "NO_OF_TESTS", noOfTests - 1);
+                            
+                            // Commit the batch
+                            batch.commit()
+                                .addOnSuccessListener(new OnSuccessListener<Void>() {
+                                    @Override
+                                    public void onSuccess(Void aVoid) {
+                                        Log.d("DbQuery", "Test deleted successfully: " + testId);
+                                        completeListener.onSuccess();
+                                    }
+                                })
+                                .addOnFailureListener(new OnFailureListener() {
+                                    @Override
+                                    public void onFailure(@NonNull Exception e) {
+                                        Log.e("DbQuery", "Failed to delete test: " + e.getMessage());
+                                        completeListener.onFailure();
+                                    }
+                                });
+                        }
+                    })
+                    .addOnFailureListener(new OnFailureListener() {
+                        @Override
+                        public void onFailure(@NonNull Exception e) {
+                            Log.e("DbQuery", "Failed to get TESTS_INFO: " + e.getMessage());
+                            completeListener.onFailure();
+                        }
+                    });
+            }
+            
+            @Override
+            public void onFailure() {
+                Log.e("DbQuery", "Failed to delete questions for test: " + testId);
+                completeListener.onFailure();
+            }
+        });
+    }
+    
+    // ==================== QUESTION ADMIN OPERATIONS ====================
+    
+    // Load questions for admin
+    public static void loadQuestionsForAdmin(String categoryId, String testId, final MyCompleteListener completeListener) {
+        g_adminQuestionList.clear();
+        
+        // Try different collection names for questions
+        g_firestore.collection("Questions")
+            .whereEqualTo("CATEGORY", categoryId)
+            .whereEqualTo("TEST", testId)
+            .get()
+            .addOnSuccessListener(new OnSuccessListener<QuerySnapshot>() {
+                @Override
+                public void onSuccess(QuerySnapshot queryDocumentSnapshots) {
+                    int questionNo = 1;
+                    for (DocumentSnapshot doc : queryDocumentSnapshots) {
+                        String docId = doc.getId();
+                        String question = doc.getString("QUESTION");
+                        String optionA = doc.getString("OPTION_A");
+                        String optionB = doc.getString("OPTION_B");
+                        String optionC = doc.getString("OPTION_C");
+                        String optionD = doc.getString("OPTION_D");
+                        String correctAnswer = doc.getString("CORRECT_ANS");
+                        
+                        g_adminQuestionList.add(new QuestionAdminModel(
+                            docId,
+                            question,
+                            optionA,
+                            optionB,
+                            optionC,
+                            optionD,
+                            correctAnswer,
+                            testId,
+                            categoryId
+                        ));
+                        questionNo++;
+                    }
+                    
+                    completeListener.onSuccess();
+                }
+            })
+            .addOnFailureListener(new OnFailureListener() {
+                @Override
+                public void onFailure(@NonNull Exception e) {
+                    Log.e("DbQuery", "Failed to load questions for admin: " + e.getMessage());
+                    completeListener.onFailure();
+                }
+            });
+    }
+    
+    // Add a new question
+    public static void addQuestion(String categoryId, String testId, String question, 
+                                  String optionA, String optionB, String optionC, String optionD, 
+                                  String correctAnswer, final MyCompleteListener completeListener) {
+        Map<String, Object> questionData = new HashMap<>();
+        questionData.put("CATEGORY", categoryId);
+        questionData.put("TEST", testId);
+        questionData.put("QUESTION", question);
+        questionData.put("OPTION_A", optionA);
+        questionData.put("OPTION_B", optionB);
+        questionData.put("OPTION_C", optionC);
+        questionData.put("OPTION_D", optionD);
+        questionData.put("CORRECT_ANS", correctAnswer);
+        
+        g_firestore.collection("Questions").add(questionData)
+            .addOnSuccessListener(new OnSuccessListener<DocumentReference>() {
+                @Override
+                public void onSuccess(DocumentReference documentReference) {
+                    // Update question count in test document
+                    updateQuestionCount(categoryId, testId, 1, new MyCompleteListener() {
+                        @Override
+                        public void onSuccess() {
+                            Log.d("DbQuery", "Question added successfully");
+                            completeListener.onSuccess();
+                        }
+                        
+                        @Override
+                        public void onFailure() {
+                            Log.e("DbQuery", "Failed to update question count");
+                            completeListener.onFailure();
+                        }
+                    });
+                }
+            })
+            .addOnFailureListener(new OnFailureListener() {
+                @Override
+                public void onFailure(@NonNull Exception e) {
+                    Log.e("DbQuery", "Failed to add question: " + e.getMessage());
+                    completeListener.onFailure();
+                }
+            });
+    }
+    
+    // Update an existing question
+    public static void updateQuestion(String questionId, String question, 
+                                     String optionA, String optionB, String optionC, String optionD, 
+                                     String correctAnswer, final MyCompleteListener completeListener) {
+        Map<String, Object> questionData = new HashMap<>();
+        questionData.put("QUESTION", question);
+        questionData.put("OPTION_A", optionA);
+        questionData.put("OPTION_B", optionB);
+        questionData.put("OPTION_C", optionC);
+        questionData.put("OPTION_D", optionD);
+        questionData.put("CORRECT_ANS", correctAnswer);
+        
+        g_firestore.collection("Questions").document(questionId).update(questionData)
+            .addOnSuccessListener(new OnSuccessListener<Void>() {
+                @Override
+                public void onSuccess(Void aVoid) {
+                    Log.d("DbQuery", "Question updated successfully");
+                    completeListener.onSuccess();
+                }
+            })
+            .addOnFailureListener(new OnFailureListener() {
+                @Override
+                public void onFailure(@NonNull Exception e) {
+                    Log.e("DbQuery", "Failed to update question: " + e.getMessage());
+                    completeListener.onFailure();
+                }
+            });
+    }
+    
+    // Delete a question
+    public static void deleteQuestion(String categoryId, String testId, String questionId, final MyCompleteListener completeListener) {
+        g_firestore.collection("Questions").document(questionId).delete()
+            .addOnSuccessListener(new OnSuccessListener<Void>() {
+                @Override
+                public void onSuccess(Void aVoid) {
+                    // Update question count in test document
+                    updateQuestionCount(categoryId, testId, -1, new MyCompleteListener() {
+                        @Override
+                        public void onSuccess() {
+                            Log.d("DbQuery", "Question deleted successfully");
+                            completeListener.onSuccess();
+                        }
+                        
+                        @Override
+                        public void onFailure() {
+                            Log.e("DbQuery", "Failed to update question count");
+                            completeListener.onFailure();
+                        }
+                    });
+                }
+            })
+            .addOnFailureListener(new OnFailureListener() {
+                @Override
+                public void onFailure(@NonNull Exception e) {
+                    Log.e("DbQuery", "Failed to delete question: " + e.getMessage());
+                    completeListener.onFailure();
+                }
+            });
+    }
+    
+    // Helper method to update question count for a test
+    private static void updateQuestionCount(String categoryId, String testId, int change, final MyCompleteListener completeListener) {
+        // First get the current question count
+        getQuestionCountForTest(categoryId, testId, new MyCompleteListener() {
+            @Override
+            public void onSuccess() {
+                // g_total_question now contains the current count
+                int newCount = g_total_question + change;
+                if (newCount < 0) newCount = 0; // Ensure count doesn't go negative
+                
+                // Update the test model if it exists in the admin list
+                for (TestAdminModel test : g_adminTestList) {
+                    if (test.getDocID().equals(testId)) {
+                        test.setQuestionCount(newCount);
+                        break;
+                    }
+                }
+                
+                completeListener.onSuccess();
+            }
+            
+            @Override
+            public void onFailure() {
+                completeListener.onFailure();
+            }
+        });
     }
 }

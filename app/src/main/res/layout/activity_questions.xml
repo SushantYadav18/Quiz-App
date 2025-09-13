@@ -61,16 +61,33 @@
             android:orientation="horizontal"
             android:padding="16dp">
 
-            <TextView
-                android:id="@+id/question_Id"
+            <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="1/25"
-                android:textColor="@color/white"
-                android:textSize="18sp"
-                android:textStyle="bold"
-                android:gravity="center_vertical" />
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/question_Id"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="1/25"
+                    android:textColor="@color/white"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    android:gravity="center_vertical" />
+
+                <ProgressBar
+                    android:id="@+id/questionProgressBar"
+                    style="@style/Widget.AppCompat.ProgressBar.Horizontal"
+                    android:layout_width="match_parent"
+                    android:layout_height="8dp"
+                    android:layout_marginTop="4dp"
+                    android:max="100"
+                    android:progress="0"
+                    android:progressTint="@color/accent_green"
+                    android:background="@android:color/darker_gray" />
+            </LinearLayout>
 
             <TextView
                 android:id="@+id/Tv_timer"
@@ -249,9 +266,10 @@
 
                 <!-- Progress Indicator -->
                 <TextView
+                    android:id="@+id/questionProgressText"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Question 1 of 2"
+                    android:text="Question 1 of 10"
                     android:textColor="@color/white"
                     android:textSize="12sp"
                     android:gravity="center"

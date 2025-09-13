@@ -102,6 +102,10 @@ public class TestActivity extends AppCompatActivity {
                             UserProgressManager progressManager = UserProgressManager.getInstance(TestActivity.this);
                             progressManager.updateTestUnlockStatus(categoryId, DbQuery.g_testList);
                             
+                            // Log overall category completion for debugging
+                            int categoryCompletion = progressManager.getCategoryCompletion(categoryId);
+                            Log.d(TAG, "Overall category completion: " + categoryCompletion + "%");
+                            
                             // Initialize adapter with loaded data
                             adapter = new TestAdapter(DbQuery.g_testList, TestActivity.this);
                             testRecycler.setAdapter(adapter);

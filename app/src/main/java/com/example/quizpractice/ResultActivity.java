@@ -242,6 +242,10 @@ public class ResultActivity extends AppCompatActivity {
             // Reset the adapter's selected answers
             // This will be implemented based on your QuestionAdapter
             Log.d(TAG, "Previous answers cleared for re-attempt");
+            
+            // Reshuffle questions for re-attempt
+            DbQuery.shuffleQuestions();
+            Log.d(TAG, "Questions reshuffled for re-attempt");
         }
     }
 
@@ -257,14 +261,13 @@ public class ResultActivity extends AppCompatActivity {
 
     private void viewAnswers() {
         // Navigate to answers review screen
-        // TODO: Create AnswersReviewActivity or implement answers review functionality
-        Toast.makeText(this, "Answers review feature coming soon!", Toast.LENGTH_SHORT).show();
+        Intent intent = new Intent(this, AnswersReviewActivity.class);
+        intent.putExtra("CATEGORY_ID", categoryId);
+        intent.putExtra("TEST_ID", testId);
+        intent.putIntegerArrayListExtra("SELECTED_ANSWERS", getIntent().getIntegerArrayListExtra("SELECTED_ANSWERS"));
+        startActivity(intent);
         
-        // Uncomment when AnswersReviewActivity is created:
-        // Intent intent = new Intent(this, AnswersReviewActivity.class);
-        // intent.putExtra("CATEGORY_ID", categoryId);
-        // intent.putExtra("TEST_ID", testId);
-        // startActivity(intent);
+        Log.d(TAG, "Navigating to AnswersReviewActivity with shuffled questions");
     }
 
     private void checkLeaderboard() {

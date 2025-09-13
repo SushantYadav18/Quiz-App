@@ -48,13 +48,33 @@ public class SplashActivity extends AppCompatActivity {
         
         if (mAuth.getCurrentUser() != null && sessionManager.isLoggedIn()) {
             // User is authenticated and has valid session
+            String userId = mAuth.getCurrentUser().getUid();
+            
+            // Set current user in UserProgressManager
+            UserProgressManager.getInstance(SplashActivity.this).setCurrentUser(userId);
+            
             DbQuery.loadData(new MyCompleteListener() {
                 @Override
                 public void onSuccess() {
-                    // Update the drawer header with the loaded user data
-                    MainActivity.updateDrawerHeader(SplashActivity.this);
-                    startActivity(new Intent(SplashActivity.this, MainActivity.class));
-                    finish();
+                    // Load user progress data from Firebase
+                    UserProgressManager.getInstance(SplashActivity.this).loadUserProgressFromFirebase(new MyCompleteListener() {
+                        @Override
+                        public void onSuccess() {
+                            // Update the drawer header with the loaded user data
+                            MainActivity.updateDrawerHeader(SplashActivity.this);
+                            startActivity(new Intent(SplashActivity.this, MainActivity.class));
+                            finish();
+                        }
+                        
+                        @Override
+                        public void onFailure() {
+                            Toast.makeText(SplashActivity.this, "Failed to load user progress data", Toast.LENGTH_SHORT).show();
+                            // Continue to MainActivity anyway
+                            MainActivity.updateDrawerHeader(SplashActivity.this);
+                            startActivity(new Intent(SplashActivity.this, MainActivity.class));
+                            finish();
+                        }
+                    });
                 }
 
                 @Override

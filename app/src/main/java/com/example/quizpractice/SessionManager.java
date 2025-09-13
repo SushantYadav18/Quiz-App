@@ -19,6 +19,7 @@ public class SessionManager {
     private static final String KEY_SESSION_START = "sessionStart";
     private static final String KEY_LAST_ACTIVITY = "lastActivity";
     private static final String KEY_SESSION_ID = "sessionId";
+    private static final String KEY_IS_ADMIN = "isAdmin";
     
     private static SessionManager instance;
     private SharedPreferences prefs;
@@ -54,6 +55,7 @@ public class SessionManager {
         editor.putLong(KEY_SESSION_START, currentTime);
         editor.putLong(KEY_LAST_ACTIVITY, currentTime);
         editor.putString(KEY_SESSION_ID, sessionId);
+        editor.putBoolean(KEY_IS_ADMIN, false);
         
         editor.apply();
         
@@ -61,6 +63,29 @@ public class SessionManager {
         
         // Log session creation to Firebase
         logSessionToFirebase(userId, sessionId, "LOGIN");
+    }
+    
+    /**
+     * Create a new admin session after successful admin login
+     */
+    public void createAdminSession() {
+        Log.d(TAG, "Creating new admin session");
+        
+        String sessionId = generateSessionId();
+        long currentTime = System.currentTimeMillis();
+        
+        editor.putBoolean(KEY_IS_LOGGED_IN, true);
+        editor.putString(KEY_USER_ID, "admin");
+        editor.putString(KEY_USER_EMAIL, "admin@quizpractice.com");
+        editor.putString(KEY_USER_NAME, "Administrator");
+        editor.putLong(KEY_SESSION_START, currentTime);
+        editor.putLong(KEY_LAST_ACTIVITY, currentTime);
+        editor.putString(KEY_SESSION_ID, sessionId);
+        editor.putBoolean(KEY_IS_ADMIN, true);
+        
+        editor.apply();
+        
+        Log.d(TAG, "Admin session created successfully. Session ID: " + sessionId);
     }
     
     /**
@@ -96,6 +121,13 @@ public class SessionManager {
      */
     public String getUserEmail() {
         return prefs.getString(KEY_USER_EMAIL, null);
+    }
+    
+    /**
+     * Check if current session is an admin session
+     */
+    public boolean isAdmin() {
+        return prefs.getBoolean(KEY_IS_ADMIN, false);
     }
     
     /**
@@ -165,11 +197,14 @@ public class SessionManager {
             logSessionToFirebase(userId, sessionId, "LOGOUT");
         }
         
+        // Clear user progress data
+        UserProgressManager.getInstance(context).clearUserData();
+        
         // Clear all session data
         editor.clear();
         editor.apply();
         
-        Log.d(TAG, "Session cleared successfully");
+        Log.d(TAG, "Session and user progress data cleared successfully");
     }
     
     /**
